@@ -1,0 +1,194 @@
+<!-- HTML\Dashboard\dashboard.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="在元气岛与AI小元对话，实时查看五维状态变化。记录重要事件，接收温暖鼓励，让每一天的自我探索都充满元气。">
+  <meta name="keywords" content="AI对话,五维状态,身心活力,情绪基调,自我价值,事件记录,元气岛,Vitalis">
+  <title>元气岛 · Vitalis</title>
+  <link rel="shortcut icon" href="/HTML/favicon_webtest.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/HTML/base.css">
+  <link rel="stylesheet" href="/HTML/Dashboard/dashboard.css">
+  <!-- Font Awesome 6 -->
+  <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> -->
+  <!-- <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.0.0-beta3/css/all.min.css"> -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- 背景条纹 -->
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+
+  <!-- 悬浮提示容器 -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- 主界面 -->
+  <div class="main-interface" id="mainInterface">
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">
+          <i class="fas fa-leaf"></i> 元气岛 · Vitalis
+        </div>
+        <!-- 日期跳转内联输入组 -->
+        <div class="date-jump-inline">
+          <input type="date" id="dateJumpInput" class="date-jump-inline-input">
+          <button id="dateJumpConfirmBtn" class="date-jump-inline-btn" title="查询指定日期的聊天记录">
+            <i class="fas fa-calendar-alt"></i> 查询
+          </button>
+        </div>
+      </div>
+      <div class="user-area">
+        <button class="logout-icon" id="logoutBtn" title="退出登录">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+        <div class="avatar-link" id="avatarBtn">
+          <img id="avatarImg" class="avatar-img" src="" alt="头像">
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="chat-area">
+        <div class="hole-punch">
+          <div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div>
+          <div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div>
+        </div>
+        <div class="messages" id="messageList">
+          <!-- 动态消息 -->
+        </div>
+        <div class="input-area">
+          <textarea id="chatInput" placeholder="写点什么..." rows="2" autocomplete="off"></textarea>
+          <button id="sendBtn"><i class="fas fa-paper-plane"></i> 发送</button>
+        </div>
+      </div>
+
+      <div class="status-board">
+        <div class="stats-section" id="statsContainer"></div>
+        <div class="events-card">
+          <div class="events-title">
+            <span><i class="fas fa-book-open"></i> 最近事件记录</span>
+            <button id="toggleEventsBtn" class="toggle-events-btn" title="隐藏事件">隐藏</button>
+          </div>
+          <div id="eventList"></div>
+        </div>
+        <!-- <button id="finishInitBtn" class="init-btn">✨ 暂时没用但不知道会不会被用上的按钮</button> -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 新手引导剧情模态框 -->
+  <div id="storyModal" class="story-modal" style="display: none;">
+    <div class="story-card">
+      <div class="story-text" id="storyText"></div>
+      <div class="story-footer" id="storyFooter" style="display: none;">
+        <input type="text" id="storyNickname" placeholder="给元气岛上的自己取个昵称" maxlength="15">
+        <button id="storyCompleteBtn">完成 · 开启旅程</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 个人资料弹窗 -->
+  <div id="profileModal" class="profile-modal" style="display: none;">
+    <div class="profile-card">
+      <div class="profile-close" id="profileCloseBtn"><i class="fas fa-times"></i></div>
+      <div class="profile-left">
+        <img id="profileAvatar" class="profile-avatar-img" src="" alt="头像">
+      </div>
+      <div class="profile-right">
+        <div class="profile-field"><i class="fas fa-user"></i> 昵称：<span id="profileNickname">-</span></div>
+        <div class="profile-field"><i class="fas fa-phone"></i> 手机号：<span id="profilePhone">-</span></div>
+        <div class="profile-field"><i class="fas fa-ticket-alt"></i> 邀请码：<span id="profileInviteCode">-</span></div>
+      </div>
+      <div class="profile-footer">
+        <button id="profileExportBtn" class="profile-export-btn"><i class="fas fa-download"></i> 导出数据 </button>
+        <button id="profileChangePwdBtn" class="profile-logout-btn"><i class="fas fa-key"></i> 修改密码 </button>
+        <button id="profileLogoutBtn" class="profile-logout-btn"><i class="fas fa-trash-alt"></i> 注销账号 </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 在现有所有弹窗之后，新增历史折线图弹窗 -->
+  <div id="historyChartModal" class="custom-confirm-overlay" style="display: none;">
+      <div class="custom-confirm-box chart-modal-box" style="width: 560px; max-width: 90%; padding: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 id="chartTitle" style="margin: 0; color: #b87a48; font-weight: 500;">
+                  <i class="fas fa-chart-line"></i> 身心活力 · 历史趋势
+              </h3>
+              <i class="fas fa-times" id="closeChartModal" style="cursor: pointer; font-size: 1.4rem; color: #b87a48; opacity: 0.7;"></i>
+          </div>
+          <canvas id="historyChart" width="500" height="300" style="max-width:100%; height:auto; background: #fffef5; border-radius: 28px; padding: 8px;"></canvas>
+          <div id="chartNoDataMsg" style="text-align: center; color: #b0a088; padding: 40px 0; display: none;">
+              🌱 暂无该维度的历史记录
+          </div>
+      </div>
+  </div>
+
+  <!-- 自定义二次确认弹窗（无输入框） -->
+  <div id="customConfirm" class="custom-confirm-overlay" style="display: none;">
+    <div class="custom-confirm-box">
+      <i class="fas fa-question-circle" style="font-size: 2.5rem; color: #d9a26c;"></i>
+      <p id="confirmMessage">确定要执行此操作吗？</p>
+      <div class="custom-confirm-buttons">
+        <button id="confirmYesBtn" class="confirm-yes">确定</button>
+        <button id="confirmNoBtn" class="confirm-no">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 密码输入弹窗（用于注销） -->
+  <div id="passwordModal" class="custom-confirm-overlay" style="display: none;">
+    <div class="custom-confirm-box">
+      <i class="fas fa-lock" style="font-size: 2.5rem; color: #d9a26c;"></i>
+      <p style="margin: 12px 0 8px;">为了安全，请输入您的登录密码</p>
+      <input type="password" id="passwordInput" placeholder="请输入密码" style="width: 90%; padding: 10px; margin: 8px 0 16px; border-radius: 60px; border: 1px solid #f0dcb8; background: #fffef8; outline: none; font-size: 0.95rem;">
+      <div class="custom-confirm-buttons">
+        <button id="passwordConfirmBtn" class="confirm-yes">确认注销</button>
+        <button id="passwordCancelBtn" class="confirm-no">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码弹窗 -->
+  <div id="changePwdModal" class="custom-confirm-overlay" style="display: none;">
+    <div class="custom-confirm-box change-pwd-box">
+      <i class="fas fa-lock"></i>
+      <p class="change-pwd-title">修改登录密码</p>
+      <input type="password" id="oldPwdInput" class="change-pwd-input" placeholder="旧密码">
+      <input type="password" id="newPwdInput" class="change-pwd-input" placeholder="新密码 (6-20位)">
+      <input type="password" id="confirmPwdInput" class="change-pwd-input" placeholder="确认新密码">
+      <div class="custom-confirm-buttons">
+        <button id="changePwdConfirmBtn" class="confirm-yes">确认修改</button>
+        <button id="changePwdCancelBtn" class="confirm-no">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日期历史聊天记录弹窗 -->
+  <div id="dateHistoryModal" class="story-modal" style="display: none;">
+    <div class="story-card date-history-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 id="dateHistoryTitle" style="margin: 0; color: #b87a48; font-weight: 500;">
+          <i class="fas fa-history"></i> <span id="dateHistoryDateText">2026年4月15日</span>
+        </h3>
+        <i class="fas fa-times" id="closeDateHistoryModal" style="cursor: pointer; font-size: 1.4rem; color: #b87a48; opacity: 0.7;"></i>
+      </div>
+      <!-- 聊天记录容器（复用聊天区样式） -->
+      <div class="date-history-messages messages" id="dateHistoryMessageList" style="max-height: 60vh; overflow-y: auto;">
+        <!-- 动态渲染消息 -->
+      </div>
+      <div id="dateHistoryNoDataMsg" style="text-align: center; color: #b0a088; padding: 40px 0; display: none;">
+        🍂 这一天没有聊天记录，是不是记错了日子？
+      </div>
+    </div>
+  </div>
+
+  <script src="/HTML/http.js"></script>
+  <script src="/HTML/utils.js"></script>
+  <script src="/HTML/Dashboard/dashboard.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</body>
+</html>

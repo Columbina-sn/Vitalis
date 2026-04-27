@@ -1,0 +1,22 @@
+/* HTML\base.css */
+/* 清除默认样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+li {
+    list-style: none;
+}
+
+body {
+    font: 14px/1.5;
+    color: #333;
+    background-color: #f3f5f7;
+}
+
+a {
+    color: #333;
+    text-decoration: none;
+}

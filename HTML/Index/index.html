@@ -1,0 +1,97 @@
+<!-- HTML\Index\index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="元气岛 Vitalis —— 一款温暖的AI陪伴式状态管理工具。通过与共情AI对话，量化你的身心、情绪、关系等五维活力状态，让自我成长有迹可循。">
+  <meta name="keywords" content="AI陪伴,状态管理,情绪追踪,自我量化,心理健康,元气岛,Vitalis,共情AI,成长日记">
+  <title>元气岛 · Vitalis</title>
+  <link rel="shortcut icon" href="/HTML/favicon_webtest.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/HTML/base.css">
+  <link rel="stylesheet" href="/HTML/Index/index.css">
+</head>
+<body>
+  <!-- 背景条纹（25个.bg）-->
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+
+  <!-- 悬浮提示容器 -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div class="auth-overlay">
+    <!-- 评论卡片 -->
+    <div class="comment">
+      <h2>✉️ 评论/反馈区</h2>
+      <div class="note">留下你的评论与反馈，一起帮助优化小元吧！</div>
+      <div class="comment-list-wrapper" id="commentListWrapper">
+        <div class="comment-list" id="commentList"></div>
+        <div class="comment-loading" id="commentLoading" style="display: none;">⏳ 加载中...</div>
+        <div class="comment-nomore" id="commentNoMore" style="display: none;">✨ 已经到底啦 ✨</div>
+      </div>
+      <div class="comment-submit">
+        <textarea id="commentContent" placeholder="写下你的想法…" rows="3" maxlength="500"></textarea>
+        <div class="submit-actions">
+          <button id="submitCommentBtn" class="submit-btn">✨ 发送评论</button>
+          <span class="char-counter"><span id="charCount">0</span>/500</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 登录/注册卡片 -->
+    <div class="auth-card">
+      <h2>🏝️ 元气岛</h2>
+      <div class="auth-tab">
+        <button id="loginTab" class="active">登录</button>
+        <button id="registerTab">注册</button>
+      </div>
+      <!-- 登录表单 -->
+      <div id="loginForm">
+        <input type="text" id="loginPhone" class="auth-input" placeholder="手机号">
+        <input type="password" id="loginPassword" class="auth-input" placeholder="密码">
+        <button class="auth-btn" id="loginBtn">进入元气岛</button>
+        <p class="agree-terms">
+          登录即表示您同意
+          <a href="/HTML/user_agreement.html" target="_blank" class="terms-link">《用户协议》</a>
+          和
+          <a href="/HTML/privacy_policy.html" target="_blank" class="terms-link">《隐私政策》</a>
+        </p>
+      </div>
+      <!-- 注册表单 -->
+      <div id="registerForm" style="display:none;">
+        <input type="text" id="registerPhone" class="auth-input" placeholder="手机号">
+        <input type="password" id="registerPassword" class="auth-input" placeholder="密码">
+        <input type="password" id="registerConfirmPassword" class="auth-input" placeholder="确认密码">
+        <input type="text" id="registerInviteCode" class="auth-input" placeholder="邀请码">
+        <button class="auth-btn" id="registerBtn">注册并进入元气岛</button>
+        <p class="agree-terms">
+          注册即表示您同意
+          <a href="/HTML/user_agreement.html" target="_blank" class="terms-link">《用户协议》</a>
+          和
+          <a href="/HTML/privacy_policy.html" target="_blank" class="terms-link">《隐私政策》</a>
+        </p>
+      </div>
+      <p class="auth-note">✨ 与AI对话，量化自我状态</p>
+    </div>
+  </div>
+  <!-- 二级密码验证弹窗 -->
+  <div id="secondFactorModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card second-factor-card">
+      <h3>🔐 管理员二次验证</h3>
+      <p class="modal-desc">请输入二级密码（30秒内有效）</p>
+      <input type="password" id="secondPasswordInput" class="modal-input" placeholder="二级密码" autocomplete="off">
+      <div class="modal-actions">
+        <button id="secondFactorCancelBtn" class="modal-btn cancel-btn">取消</button>
+        <button id="secondFactorSubmitBtn" class="modal-btn confirm-btn">验证</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/HTML/http.js"></script>
+  <script src="/HTML/utils.js"></script>
+  <script src="/HTML/Index/index.js"></script>
+</body>
+</html>

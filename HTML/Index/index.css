@@ -1,0 +1,590 @@
+/* HTML\Index\index.css */
+/* ============================================================
+   1. 基础背景（固定条纹背景，由 25 个 .bg 元素构成）
+   ============================================================ */
+.bg {
+  position: fixed;        /* 固定定位，相对于视口，不随滚动移动 */
+  height: 30.75px;        /* 每个背景条的高度，精确匹配条纹间距 */
+  width: 100%;            /* 宽度占满整个视口 */
+  left: 0;                /* 紧贴左边缘 */
+  z-index: -1;            /* 置于所有正常内容的下方 */
+}
+
+/* ============================================================
+   2. 悬浮提示卡片（右下角 Toast 通知）
+   ============================================================ */
+.toast-container {
+  position: fixed;        /* 相对于视口固定定位 */
+  bottom: 24px;           /* 距离视口底部 24px */
+  right: 24px;            /* 距离视口右侧 24px */
+  z-index: 30000;         /* 很高的层级，确保位于最上层 */
+  display: flex;          /* 使用 flex 布局排列多个 toast */
+  flex-direction: column; /* 垂直方向排列 */
+  gap: 12px;              /* 每个 toast 之间的间距 */
+  pointer-events: none;   /* 让容器本身不捕获鼠标事件，但子元素可覆盖 */
+}
+
+.toast-card {
+  background: rgba(60, 50, 40, 0.9); /* 深色半透明背景（米灰） */
+  backdrop-filter: blur(8px);        /* 背景模糊 8px，增强毛玻璃效果 */
+  color: #fff7e8;                    /* 文字为暖白色 */
+  padding: 12px 20px;                /* 内边距：上下 12px，左右 20px */
+  border-radius: 60px;               /* 大圆角，胶囊形状 */
+  font-size: 0.9rem;                 /* 字体相对较小 */
+  font-weight: 500;                  /* 中等字重 */
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15); /* 柔和阴影，增加立体感 */
+  border-left: 4px solid #f3c28c;    /* 左侧彩色强调条，暖橙色 */
+  max-width: 280px;                  /* 最大宽度限制，避免过长 */
+  word-break: break-word;            /* 长单词或URL自动换行 */
+  pointer-events: auto;              /* 允许该卡片响应鼠标事件（如点击关闭） */
+  animation: toastFadeIn 0.3s ease forwards; /* 入场动画：淡入+右移，结束后保持最终状态 */
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;                      /* 起始透明 */
+    transform: translateX(30px);     /* 起始位置偏右 30px */
+  }
+  to {
+    opacity: 1;                      /* 结束完全不透明 */
+    transform: translateX(0);        /* 回到原位 */
+  }
+}
+
+.toast-card.fade-out {
+  animation: toastFadeOut 0.3s ease forwards; /* 出场动画：淡出+右移 */
+}
+
+@keyframes toastFadeOut {
+  from {
+    opacity: 1;                      /* 起始完全不透明 */
+    transform: translateX(0);        /* 起始位置正常 */
+  }
+  to {
+    opacity: 0;                      /* 结束透明 */
+    transform: translateX(30px);     /* 结束位置偏右 30px */
+  }
+}
+
+/* ============================================================
+   3. 装饰元素：全局光点漂浮（暖色调）
+   ============================================================ */
+.auth-overlay::before {
+  content: '';                       /* 必须声明，否则伪元素不显示 */
+  position: absolute;                /* 绝对定位，相对于 .auth-overlay */
+  top: 10%;                          /* 距离顶部 10% 处 */
+  left: 5%;                          /* 距离左侧 5% 处 */
+  width: 120px;                      /* 圆形光斑宽度 */
+  height: 120px;                     /* 圆形光斑高度 */
+  background: radial-gradient(circle, rgba(255,200,100,0.2) 0%, transparent 70%); /* 径向渐变，中心暖黄半透明，边缘透明 */
+  border-radius: 50%;                /* 圆形 */
+  pointer-events: none;              /* 不干扰点击 */
+  z-index: 1;                        /* 位于背景之上，内容之下 */
+}
+
+.auth-overlay::after {
+  content: '';                       /* 必须声明 */
+  position: absolute;                /* 绝对定位 */
+  bottom: 15%;                       /* 距离底部 15% 处 */
+  right: 8%;                         /* 距离右侧 8% 处 */
+  width: 180px;                      /* 光斑宽度较大 */
+  height: 180px;                     /* 光斑高度较大 */
+  background: radial-gradient(circle, rgba(255,180,80,0.12) 0%, transparent 70%); /* 更淡的暖色径向渐变 */
+  border-radius: 50%;                /* 圆形 */
+  pointer-events: none;              /* 不干扰点击 */
+  z-index: 1;                        /* 层级同上 */
+}
+
+/* ============================================================
+   4. 评论卡片（大而柔，暖白色调）
+   ============================================================ */
+.comment {
+  background: rgba(255, 252, 240, 0.96); /* 暖白半透明背景，轻微透出底部条纹 */
+  backdrop-filter: blur(2px);            /* 极轻微背景模糊，增强柔和感 */
+  width: 620px;                          /* 固定宽度，适合桌面阅读 */
+  height: 600px;                         /* 固定高度，容纳滚动区域 */
+  max-width: 90%;                        /* 移动端限制最大宽度为视口 90% */
+  padding: 28px 24px;                    /* 内边距：上下 28px，左右 24px */
+  border-radius: 48px;                   /* 大圆角，现代卡片风格 */
+  box-shadow: 0 20px 35px rgba(80, 60, 30, 0.15); /* 深褐色阴影，温暖厚重 */
+  border: 1px solid #f3dfb8;             /* 浅米色边框 */
+  display: flex;                         /* flex 布局便于内部内容排列 */
+  flex-direction: column;                /* 垂直方向排列标题、列表、提交区 */
+  transition: all 0.2s ease;             /* 所有属性变化时平滑过渡 */
+  position: relative;                    /* 为内部绝对定位的伪元素提供参考 */
+  background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.008) 0px, rgba(0,0,0,0.008) 2px, transparent 2px, transparent 8px); /* 极浅斜向网格纹理，增加质感 */
+}
+
+.comment::before {
+  content: '🌿';                         /* 装饰图标：绿叶 */
+  position: absolute;                    /* 绝对定位相对于 .comment */
+  bottom: 20px;                          /* 距离底部 20px */
+  left: 20px;                            /* 距离左侧 20px */
+  font-size: 2rem;                       /* 图标大小 */
+  opacity: 0.15;                         /* 极淡，不干扰文字阅读 */
+  pointer-events: none;                  /* 不捕获鼠标事件 */
+  transform: rotate(-15deg);             /* 轻微旋转，更自然 */
+}
+
+.comment::after {
+  content: '✨';                         /* 装饰图标：闪光 */
+  position: absolute;                    /* 绝对定位 */
+  top: 20px;                             /* 距离顶部 20px */
+  right: 25px;                           /* 距离右侧 25px */
+  font-size: 1.8rem;                     /* 图标大小略小 */
+  opacity: 0.2;                          /* 半透明 */
+  pointer-events: none;                  /* 不干扰点击 */
+}
+
+.comment h2 {
+  font-size: 1.9rem;                     /* 标题字号较大，醒目 */
+  margin-bottom: 8px;                    /* 下方间距 8px */
+  color: #c9905c;                        /* 暖橙色，与卡片主题一致 */
+  font-weight: 550;                      /* 半粗体 */
+}
+
+.comment .note {
+  margin-top: 0;                         /* 取消默认上边距 */
+  margin-bottom: 16px;                   /* 下边距 16px，与后续元素分隔 */
+  font-size: 0.9rem;                     /* 较小字号，说明性文字 */
+  color: #dbb07c;                        /* 浅橙色 */
+}
+
+.comment-list-wrapper {
+  flex: 1;                               /* 占据剩余所有可用空间，撑开高度 */
+  overflow-y: auto;                      /* 内容过多时垂直滚动 */
+  margin: 8px 0 12px;                    /* 上 8px，左右 0，下 12px 外边距 */
+  padding-right: 6px;                    /* 右侧内边距，为滚动条留出空间 */
+  scroll-behavior: smooth;               /* 滚动行为平滑（支持现代浏览器） */
+}
+
+.comment-list-wrapper::-webkit-scrollbar {
+  width: 5px;                            /* 滚动条宽度（WebKit内核） */
+}
+.comment-list-wrapper::-webkit-scrollbar-track {
+  background: #f5ecd8;                   /* 滚动条轨道背景色 */
+  border-radius: 10px;                   /* 轨道圆角 */
+}
+.comment-list-wrapper::-webkit-scrollbar-thumb {
+  background: #ddc8a4;                   /* 滚动条滑块颜色 */
+  border-radius: 10px;                   /* 滑块圆角 */
+}
+
+.comment-list {
+  display: flex;                         /* flex 布局排列评论项 */
+  flex-direction: column;                /* 垂直方向排列 */
+  gap: 18px;                             /* 评论项之间的间距 */
+}
+
+.comment-item {
+  background: rgba(255, 253, 245, 0.95); /* 近乎白色的半透明背景 */
+  border-radius: 32px;                   /* 大圆角，柔和 */
+  padding: 14px 18px;                    /* 内边距：上下 14px，左右 18px */
+  border: 1px solid #f2e2c0;             /* 浅米色边框 */
+  text-indent: 1em;                      /* 首行缩进 1 个字符宽度，突出段落感 */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03); /* 极浅阴影，增加层次 */
+  transition: 0.2s;                      /* 过渡效果（hover 时平滑） */
+}
+
+.comment-item:hover {
+  background: #fffff5;                   /* hover 时变为纯亮白 */
+  border-color: #ecd6aa;                 /* 边框颜色加深为浅黄褐色 */
+}
+
+.comment-content {
+  font-size: 1rem;                       /* 正文标准字号 */
+  line-height: 1.45;                     /* 行高适中，便于阅读 */
+  color: #7a5a3a;                        /* 深米色文字，温暖不刺眼 */
+  word-break: break-word;                /* 长单词换行 */
+  margin-bottom: 10px;                   /* 下边距与元信息分隔 */
+  white-space: pre-wrap;                /* 保留换行和空格，自动换行 */
+}
+
+.comment-meta {
+  display: flex;                         /* flex 布局 */
+  justify-content: flex-end;             /* 内容右对齐 */
+  font-size: 0.7rem;                     /* 很小的字号，表示次要信息 */
+  color: #c7ae84;                        /* 浅褐色 */
+  border-top: 1px dashed #f0e0c0;        /* 上边框虚线，视觉分隔 */
+  padding-top: 8px;                      /* 上内边距，与内容拉开距离 */
+  gap: 12px;                             /* 子元素（如时间、操作）间距 */
+}
+
+.comment-time {
+  letter-spacing: 0.3px;                 /* 微小字间距，提升可读性 */
+}
+
+/* 管理员回复区域 */
+.admin-reply-section {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 248, 235, 0.85);  /* 暖米白背景 */
+    border-radius: 18px;
+    border-left: 3px solid #d9a26c;        /* 暖橙色强调条，和标题、链接同色系 */
+}
+.admin-reply-label {
+    font-size: 0.8rem;
+    color: #b87a48;                         /* 深暖橙文字，和按钮主色一致 */
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+.admin-reply-content {
+    font-size: 0.9rem;
+    color: #5e4a32;                         /* 保持深米色文字，柔和可读 */
+    text-indent: 1em;
+    word-break: break-word;
+}
+
+/* 评论已回复标识 */
+.comment-replied {
+    text-align: right;
+    font-size: 0.75rem;
+    color: #7a9e5a;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding-right: 4px;
+}
+
+.comment-loading,
+.comment-nomore {
+  text-align: center;                    /* 文字居中 */
+  font-size: 0.75rem;                    /* 小字号 */
+  color: #cbb280;                        /* 浅棕色 */
+  padding: 12px 0 8px;                   /* 上下内边距，左右为 0 */
+}
+
+.comment-submit {
+  margin-top: 8px;                       /* 与上方评论列表间距 8px */
+  background: #fffaf0;                   /* 极浅米白背景 */
+  border-radius: 36px;                   /* 大圆角，圆润 */
+  padding: 14px 18px;                    /* 内边距 */
+  border: 1px solid #f0dfbc;             /* 浅色边框 */
+}
+
+.comment-submit textarea {
+  width: 100%;                           /* 宽度填满父容器 */
+  border: 1px solid #eedcae;             /* 边框颜色匹配主题 */
+  border-radius: 28px 3px 3px 28px;            /* 圆角较大，柔和 */
+  padding: 4px 4px 4px 20px;                    /* 内边距，便于输入 */
+  font-family: inherit;                  /* 继承父级字体 */
+  font-size: 0.9rem;                     /* 较小字号，与界面协调 */
+  background: #fffefa;                   /* 接近白色背景 */
+  outline: none;                         /* 移除默认聚焦轮廓 */
+  transition: 0.2s;                      /* 过渡效果 */
+  resize: none;                          /* 禁止用户调整大小，保持布局稳定 */
+  overflow-y: auto;                      /* 确保 textarea 内容超出时出现滚动条 */
+}
+
+.comment-submit textarea:focus {
+  border-color: #e0c48a;                 /* 聚焦时边框变为深金色 */
+  box-shadow: 0 0 30px 4px #eedcae40 inset,
+              0 0 0 3px #fdf3e0;         /* 外发光，暖色柔和 */
+}
+
+/* 为评论区输入框定制滚动条（与评论列表统一） */
+.comment-submit textarea::-webkit-scrollbar {
+  width: 5px;
+}
+
+.comment-submit textarea::-webkit-scrollbar-track {
+  background: #f5ecd8;
+  border-radius: 10px;
+}
+
+.comment-submit textarea::-webkit-scrollbar-thumb {
+  background: #ddc8a4;
+  border-radius: 10px;
+}
+
+.submit-actions {
+  display: flex;                         /* flex 布局 */
+  justify-content: flex-end;             /* 内容右对齐 */
+  align-items: center;                   /* 垂直居中 */
+  gap: 16px;                             /* 按钮与字数统计间距 */
+  margin-top: 12px;                      /* 与文本框上间距 */
+}
+
+.submit-btn {
+  background: #f8e6c8;                   /* 浅米色背景 */
+  border: none;                          /* 无边框 */
+  border-radius: 60px;                   /* 胶囊形状 */
+  padding: 8px 22px;                     /* 内边距左右较大，上下较小 */
+  font-weight: 600;                      /* 加粗 */
+  font-size: 0.9rem;                     /* 适中字号 */
+  color: #b87a4a;                        /* 深橙色文字 */
+  cursor: pointer;                       /* 鼠标变成手型，表示可点击 */
+  transition: 0.1s linear;               /* 快速过渡，模拟按下效果 */
+  box-shadow: 0 3px 0 #dbb888;           /* 下阴影模拟立体按钮 */
+  border: 1px solid #fff4e0;             /* 极浅边框，增加细节 */
+}
+
+.submit-btn:active {
+  transform: translateY(2px);            /* 按下时轻微下移 */
+  box-shadow: 0 1px 0 #dbb888;           /* 阴影缩小，模拟按压 */
+}
+
+.char-counter {
+  font-size: 0.7rem;                     /* 小字号，表示字数统计 */
+  color: #cbb280;                        /* 浅棕色，低调 */
+}
+
+.comment-empty {
+  text-align: center;                    /* 文字居中 */
+  padding: 32px 16px;                    /* 上下 32px，左右 16px */
+  color: #c7aa7a;                        /* 浅米色文字 */
+  font-size: 0.9rem;                     /* 适中字号 */
+  background: #fffef0;                   /* 暖白背景 */
+  border-radius: 44px;                   /* 大圆角 */
+  cursor: pointer;
+}
+
+/* ============================================================
+   5. 登录/注册卡片（小而亮，暖色焦点）
+   ============================================================ */
+.auth-overlay {
+  position: absolute;                    /* 绝对定位，相对于最近的已定位祖先（通常为 body 或包裹容器） */
+  top: 2.5%;                             /* 距离顶部 2.5% */
+  left: 4%;                              /* 距离左侧 4% */
+  width: 92%;                            /* 宽度为父容器的 92% */
+  height: 95%;                           /* 高度为父容器的 95% */
+  background-color: rgba(250, 240, 220, 0.4); /* 半透暖黄背景 */
+  backdrop-filter: blur(4px);            /* 背景模糊 4px，突出前景卡片 */
+  display: flex;                         /* flex 布局使两个卡片居中 */
+  align-items: center;                   /* 垂直居中对齐 */
+  justify-content: center;               /* 水平居中对齐 */
+  gap: 60px;                             /* 两个卡片之间的间距（如果同时显示） */
+  z-index: 20;                           /* 较高层级，位于评论卡片之上 */
+  transition: opacity 0.3s ease;         /* 透明度变化平滑过渡（用于隐藏/显示） */
+  border-radius: 36px;                   /* 圆角，与内部卡片风格一致 */
+}
+
+.auth-card {
+  background: #fffdf8;                   /* 纯白偏暖背景 */
+  width: 390px;                          /* 固定宽度，适合表单内容 */
+  max-width: 90%;                        /* 移动端限制最大宽度为视口 90% */
+  padding: 36px 30px;                    /* 内边距：上下 36px，左右 30px */
+  border-radius: 56px;                   /* 大圆角，圆润卡片 */
+  border: 2px solid #f7dcb0;             /* 稍粗的浅米色边框 */
+  text-align: center;                    /* 内部文字居中（除特殊元素） */
+  position: relative;                    /* 为伪元素提供定位参考 */
+  box-shadow: 0 25px 35px rgba(80, 60, 30, 0.12); /* 深褐色阴影，增加立体感 */
+  transition: transform 0.2s ease, box-shadow 0.2s ease; /* hover 时平滑过渡 */
+  background-image: radial-gradient(circle at 20% 30%, rgba(255,235,180,0.3) 0%, transparent 60%); /* 径向渐变高光，模拟光照 */
+}
+
+.auth-card:hover {
+  transform: translateY(-5px);           /* hover 时轻微上浮 */
+  box-shadow: 0 30px 40px rgba(80, 60, 30, 0.18); /* 阴影更大更深，强调浮起效果 */
+}
+
+.auth-card::after {
+  content: '☀️';                         /* 装饰图标：太阳 */
+  position: absolute;                    /* 绝对定位 */
+  top: -15px;                            /* 超出卡片顶部边缘 */
+  right: -10px;                          /* 超出右侧边缘 */
+  font-size: 2rem;                       /* 图标大小 */
+  opacity: 0.5;                          /* 半透明，不喧宾夺主 */
+  transform: rotate(15deg);              /* 轻微旋转，活泼 */
+}
+
+.auth-card h2,
+.comment h2 {
+  font-size: 2.3rem;                     /* 共同标题字号较大 */
+  font-weight: 500;                      /* 中等字重 */
+  color: #d9a26c;                        /* 暖橙色 */
+  margin-bottom: 12px;                   /* 下边距 12px */
+}
+
+.auth-tab {
+  display: flex;                         /* flex 布局排列登录/注册切换按钮 */
+  gap: 10px;                             /* 按钮间距 10px */
+  margin: 20px 0 18px;                   /* 上 20px，左右 0，下 18px */
+}
+
+.auth-tab button {
+  flex: 1;                               /* 均分剩余宽度 */
+  background: transparent;               /* 透明背景 */
+  border: none;                          /* 无边框 */
+  font-size: 1.2rem;                     /* 稍大字号 */
+  padding: 8px;                          /* 内边距 8px 上下左右 */
+  border-radius: 40px;                   /* 大圆角，胶囊形 */
+  cursor: pointer;                       /* 手型光标 */
+  color: #cba070;                        /* 浅橙色文字 */
+  border: 1px solid transparent;         /* 透明边框，占位避免布局抖动 */
+}
+
+.auth-tab button.active {
+  background: #faefd8;                   /* 激活状态背景色为浅米色 */
+  color: #b87a48;                        /* 深橙色文字 */
+  border-color: #f0dcb8;                 /* 显示边框，与背景融合 */
+  font-weight: 600;                      /* 加粗突出 */
+}
+
+.auth-input {
+  width: 100%;                           /* 宽度填满父容器 */
+  padding: 14px 20px;                    /* 内边距上下 14px，左右 20px */
+  margin: 10px 0;                        /* 上下 10px 外边距，左右 0 */
+  border: 1px solid #eedcae;             /* 浅米色边框 */
+  border-radius: 60px;                   /* 大圆角，胶囊形 */
+  font-size: 1rem;                       /* 标准字号 */
+  outline: none;                         /* 移除默认聚焦轮廓 */
+  background: #fffef8;                   /* 接近白色的背景 */
+  transition: 0.2s;                      /* 过渡效果 */
+}
+
+.auth-input:focus {
+  border-color: #e0c48a;                 /* 聚焦时边框变为深金色 */
+  box-shadow: 0 0 0 4px #fcf3e2;         /* 外发光，暖色柔和 */
+}
+
+.auth-btn {
+  background: #fee7c4;                   /* 暖米色背景 */
+  border: none;                          /* 无边框 */
+  border-radius: 60px;                   /* 大圆角 */
+  padding: 14px 0;                       /* 上下 14px，左右 0（撑满宽度） */
+  width: 100%;                           /* 宽度填满父容器 */
+  font-weight: 700;                      /* 粗体 */
+  font-size: 1.2rem;                     /* 稍大字号 */
+  color: #b87a48;                        /* 深橙色文字 */
+  margin-top: 24px;                      /* 上边距 24px，与表单项分隔 */
+  box-shadow: 0 4px 0 #dbb888;           /* 下阴影，立体按钮效果 */
+  cursor: pointer;                       /* 手型光标 */
+  transition: 0.06s linear;              /* 极快过渡，模拟按下效果 */
+  border: 1px solid #fff2e0;             /* 极浅边框，增加细节 */
+}
+
+.auth-btn:active {
+  transform: translateY(4px);            /* 按下时下移 4px */
+  box-shadow: none;                      /* 阴影消失，模拟按压到底 */
+}
+
+.auth-note,
+.comment .note {
+  margin-top: 20px;                      /* 上边距 20px，与主要元素分隔 */
+  color: #dbb07c;                        /* 浅橙色文字 */
+  font-size: 0.9rem;                     /* 小字号，说明性文字 */
+}
+
+/* 二级验证弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.2);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.second-factor-card {
+  background: #fffdf8;
+  padding: 28px 30px;
+  border-radius: 48px;
+  border: 2px solid #f7dcb0;
+  box-shadow: 0 20px 35px rgba(80,60,30,0.15);
+  width: 360px;
+  max-width: 90%;
+  text-align: center;
+}
+
+.second-factor-card h3 {
+  color: #d9a26c;
+  margin-bottom: 12px;
+  font-size: 1.6rem;
+}
+
+.modal-desc {
+  color: #b89a6a;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 18px;
+  border: 1px solid #eedcae;
+  border-radius: 60px;
+  font-size: 1rem;
+  outline: none;
+  background: #fffef8;
+  margin-bottom: 24px;
+}
+
+.modal-input:focus {
+  border-color: #e0c48a;
+  box-shadow: 0 0 0 3px #fcf3e2;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.modal-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 60px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.1s;
+}
+
+.cancel-btn {
+  background: #f0e0c8;
+  color: #8b6f50;
+  box-shadow: 0 3px 0 #d4b898;
+}
+
+.confirm-btn {
+  background: #fee7c4;
+  color: #b87a48;
+  box-shadow: 0 3px 0 #dbb888;
+}
+
+.modal-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #dbb888;
+}
+
+/* ============================================================
+   6. 连接装饰
+   ============================================================ */
+/* .auth-overlay .auth-card + .comment::before {
+  content: '';
+  position: absolute;
+  left: -40px;
+  top: 50%;
+  width: 40px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #f0d8b0, #f0d8b0 8px, transparent 8px, transparent 16px);
+} */
+
+/* ============================================================
+   7. 协议链接样式
+   ============================================================ */
+.agree-terms {
+  font-size: 0.75rem;                    /* 很小的字号，表示次要法律文本 */
+  color: #c7aa7a;                        /* 浅米色文字，不抢眼 */
+  margin-top: 16px;                      /* 上边距 16px，与按钮分隔 */
+  margin-bottom: 0;                      /* 下边距为 0，紧凑排列 */
+}
+
+.terms-link {
+  color: #d9a26c;                        /* 暖橙色，可链接颜色 */
+  text-decoration: none;                 /* 默认无下划线 */
+  transition: color 0.2s ease;           /* 颜色变化平滑过渡 */
+}
+
+.terms-link:hover {
+  color: #b87a48;                        /* hover 时变为深橙色 */
+  text-decoration: underline;            /* 显示下划线，提示可点击 */
+}

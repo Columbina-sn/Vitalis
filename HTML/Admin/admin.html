@@ -1,0 +1,235 @@
+<!-- HTML\Admin\admin.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>元气岛 · 管理后台</title>
+  <link rel="shortcut icon" href="/HTML/favicon_webtest.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/HTML/base.css">
+  <link rel="stylesheet" href="/HTML/Dashboard/dashboard.css">
+  <link rel="stylesheet" href="/HTML/Admin/admin.css">
+  <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+  <!-- 背景条纹 -->
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div class="main-interface admin-interface" id="adminInterface">
+    <!-- 头部 -->
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">
+          <i class="fas fa-shield-alt"></i> 元气岛 · 管理控制台
+        </div>
+        <div class="admin-badge">
+          <i class="fas fa-crown"></i> 管理员模式
+        </div>
+      </div>
+      <div class="user-area">
+        <button class="logout-icon" id="adminLogoutBtn" title="退出管理">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+        <div class="avatar-link" id="adminAvatarBtn">
+          <img id="adminAvatarImg" class="avatar-img" src="/static_pic/default_avatar.jpg" alt="头像">
+        </div>
+      </div>
+    </div>
+
+    <div class="main admin-main">
+      <!-- ========= 左侧：数据展现区 ========= -->
+      <div class="data-area">
+        <!-- 标签页导航 -->
+        <div class="data-tabs">
+          <button class="tab-btn active" data-tab="users"><i class="fas fa-users"></i> 用户管理</button>
+          <button class="tab-btn" data-tab="comments"><i class="fas fa-comment-dots"></i> 评论管理</button>
+          <button class="tab-btn" data-tab="invites"><i class="fas fa-ticket-alt"></i> 邀请码</button>
+          <button class="tab-btn" data-tab="logs"><i class="fas fa-history"></i> 操作日志</button>
+          <button class="tab-btn refresh-btn" id="refreshDataBtn" title="刷新当前页"><i class="fas fa-sync-alt"></i> 刷新</button>
+        </div>
+
+        <!-- 表格容器 -->
+        <div class="table-wrapper" id="adminTableWrapper">
+          <table class="admin-table" id="adminDataTable">
+            <!-- 表头与内容由JS动态生成 -->
+          </table>
+        </div>
+
+        <!-- 分页控件 -->
+        <div class="pagination-area" id="adminPagination">
+          <span class="page-info" id="pageCountInfo">共 0 条</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button class="page-btn" id="prevPageBtn" disabled><i class="fas fa-chevron-left"></i> 上一页</button>
+            <span class="page-info" id="pageInfo">第 1 页 / 共 1 页</span>
+            <button class="page-btn" id="nextPageBtn" disabled>下一页 <i class="fas fa-chevron-right"></i></button>
+            <span class="page-jump">
+              <input type="number" id="pageJumpInput" min="1" style="width:50px;padding:4px 8px;border-radius:20px;border:1px solid #f0dcb8;text-align:center;background:#fffef8;" placeholder="页">
+              <button class="page-btn" id="pageJumpBtn">跳转</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========= 右侧：操作区 ========= -->
+      <div class="action-area">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <i class="fas fa-user-friends"></i>
+            <div class="stat-content">
+              <span class="stat-label">用户总数</span>
+              <span class="stat-value" id="statTotalUsers">-</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-comment-medical"></i>
+            <div class="stat-content">
+              <span class="stat-label">今日对话</span>
+              <span class="stat-value" id="statTodayConversations">-</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-comment"></i>
+            <div class="stat-content">
+              <span class="stat-label">评论总数</span>
+              <span class="stat-value" id="statTotalComments">-</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-ticket-alt"></i>
+            <div class="stat-content">
+              <span class="stat-label">有效邀请码</span>
+              <span class="stat-value" id="statValidInvites">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 批量生成邀请码 -->
+        <div class="action-card">
+          <div class="card-header"><i class="fas fa-gift"></i> 批量生成邀请码</div>
+          <div class="card-body">
+            <div class="input-row">
+              <label>数量</label>
+              <input type="number" id="inviteCount" min="1" max="100">
+            </div>
+            <div class="input-row">
+              <label>有效期（天）</label>
+              <input type="number" id="inviteExpiryDays" min="1" max="7">
+            </div>
+            <button class="primary-btn" id="generateInvitesBtn"><i class="fas fa-magic"></i> 生成</button>
+            <div class="invite-result" id="inviteResultList"></div>
+          </div>
+        </div>
+
+        <!-- 操作日志查询 -->
+        <div class="action-card">
+          <div class="card-header"><i class="fas fa-history"></i> 操作日志</div>
+          <div class="card-body">
+            <div class="date-range">
+              <input type="date" id="logStartDate">
+              <span>—</span>
+              <input type="date" id="logEndDate">
+            </div>
+            <button class="secondary-btn" id="queryLogsBtn"><i class="fas fa-search"></i> 查询日志</button>
+          </div>
+        </div>
+
+        <!-- 安全控制 -->
+        <div class="action-card">
+          <div class="card-header"><i class="fas fa-shield-virus"></i> 安全控制</div>
+          <div class="card-body">
+            <button class="btn-warning" id="toggleAdminLoginBtn" style="width: 100%;">
+              <i class="fas fa-power-off"></i> 关闭管理员登录入口
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑模态框 (通用) -->
+  <div id="editModal" class="profile-modal" style="display: none;">
+    <div class="profile-card" style="width: 500px;">
+      <div class="profile-close" id="closeEditModal"><i class="fas fa-times"></i></div>
+      <h3 style="margin: 0 0 20px; color: #b87a48;"><i class="fas fa-pen"></i> 编辑记录</h3>
+      <div id="editFormContainer">
+        <!-- 编辑用户字段 -->
+        <div id="editUserFields" style="display:none;">
+          <label>手机号</label>
+          <input type="text" id="editUserPhone" maxlength="11" class="edit-input" />
+          <label>昵称</label>
+          <input type="text" id="editUserNickname" maxlength="15" class="edit-input" />
+          <label style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="editUserCanLogin" /> 允许登录
+          </label>
+        </div>
+        <!-- 编辑评论字段 -->
+        <div id="editCommentFields" style="display:none;">
+          <label>内容</label>
+          <textarea id="editCommentContent" class="edit-textarea" rows="4"></textarea>
+          <label style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="editCommentReplied" /> 已回复
+          </label>
+        </div>
+        <!-- 编辑邀请码字段 -->
+        <div id="editInviteFields" style="display:none;">
+          <label>邀请码</label>
+          <input type="text" id="editInviteCode" maxlength="8" class="edit-input" />
+          <label>过期时间</label>
+          <input type="datetime-local" id="editInviteExpiry" class="edit-input" />
+        </div>
+      </div>
+      <div class="profile-footer" style="justify-content: flex-end;">
+        <button class="profile-logout-btn" id="cancelEditBtn">取消</button>
+        <button class="profile-export-btn" id="saveEditBtn">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自定义二次确认弹窗 -->
+  <div id="customConfirm" class="custom-confirm-overlay" style="display: none;">
+    <div class="custom-confirm-box">
+      <i class="fas fa-question-circle" style="font-size: 2.5rem; color: #d9a26c;"></i>
+      <p id="confirmMessage">确定要执行此操作吗？</p>
+      <div class="custom-confirm-buttons">
+        <button id="confirmYesBtn" class="confirm-yes">确定</button>
+        <button id="confirmNoBtn" class="confirm-no">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作日志弹窗 -->
+  <div id="adminLogsModal" class="story-modal" style="display: none;">
+    <div class="story-card date-history-card" style="max-width: 700px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; color: #b87a48; font-weight: 500;">
+          <i class="fas fa-history"></i> 操作日志 · <span id="adminLogsDateRangeText">全部</span>
+        </h3>
+        <i class="fas fa-times" id="closeAdminLogsModalBtn" style="cursor: pointer; font-size: 1.4rem; color: #b87a48; opacity: 0.7;"></i>
+      </div>
+      <div class="date-history-messages messages" id="adminLogsMessageList" style="max-height: 60vh; overflow-y: auto; min-height: 200px;"></div>
+      <div id="adminLogsLoadingMsg" style="text-align: center; padding: 20px; color: #b0a088; display: none;">⏳ 加载中...</div>
+      <div id="adminLogsNoDataMsg" style="text-align: center; color: #b0a088; padding: 40px 0; display: none;">🍂 该时间段内没有操作日志</div>
+    </div>
+  </div>
+
+  <!-- 敏感信息弹窗 -->
+  <div id="sensitiveModal" class="custom-confirm-overlay" style="display: none;">
+    <div class="custom-confirm-box">
+      <i class="fas fa-eye" style="font-size: 2rem; color: #b87a48;"></i>
+      <p id="sensitiveContent"></p>
+      <button id="closeSensitiveBtn" class="confirm-no" style="margin-top: 16px;">关闭</button>
+    </div>
+  </div>
+
+  <script src="/HTML/http.js"></script>
+  <script src="/HTML/utils.js"></script>
+  <script src="/HTML/Admin/admin.js"></script>
+</body>
+</html>
