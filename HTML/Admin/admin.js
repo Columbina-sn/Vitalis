@@ -296,7 +296,6 @@
                 nickname: document.getElementById('editUserNickname').value,
                 can_login: document.getElementById('editUserCanLogin').checked
             };
-            // 构建新的行数据（用于本地更新）
             const item = currentDataList.find(d => d.id == id);
             if (item) {
                 updatedItem = { ...item, ...data };
@@ -383,14 +382,12 @@
         needAuth: true
       });
 
-      // 防止旧请求覆盖
       if (seq !== loadDataSeq) return;
 
       const list = data.list || [];
       currentTotal = data.total || 0;
       currentDataList = list;
       
-      // 空页自动回退
       if (list.length === 0 && currentPage > 1) {
         currentPage--;
         return loadData();
@@ -421,8 +418,9 @@
 
     const configs = {
       users: {
-          headers: ['手机号', '昵称', '邀请码', '注册时间', '心理和谐', '事件数', '对话数', '登录状态', '操作'],
-          widths: ['15%', '15%', '12%', '17%', '9%', '8%', '8%', '8%', '8%'],
+          // 已移除“事件数”列
+          headers: ['手机号', '昵称', '邀请码', '注册时间', '心理和谐', '对话数', '登录状态', '操作'],
+          widths: ['15%', '15%', '12%', '17%', '9%', '8%', '9%', '8%'],
           hasActions: true,
           renderRow: (item) => [
               `<span class="phone-toggle" data-full="${escapeHtml(item.phone)}">${maskPhone(item.phone)}</span>`,
@@ -430,7 +428,6 @@
               item.invite_code || '',
               formatDate(item.created_at),
               item.psychological_harmony_index,
-              item.event_count,
               item.conversation_count,
               item.can_login 
                   ? '<span class="status-allowed">允许</span>' 
@@ -597,30 +594,25 @@
               await http({ method: 'DELETE', url, needAuth: true });
               showToast('删除成功');
 
-              // ---------- 纯本地乐观更新右侧统计卡片 ----------
+              // 乐观更新右侧统计卡片
               const now = new Date();
               if (currentTab === 'users') {
                   statTotalUsers.textContent = Math.max(0, (parseInt(statTotalUsers.textContent) || 0) - 1);
               } else if (currentTab === 'comments') {
                   statTotalComments.textContent = Math.max(0, (parseInt(statTotalComments.textContent) || 0) - 1);
               } else if (currentTab === 'invites') {
-                  // 只有当前删除的是未过期的邀请码才减少有效数
                   const expiry = item.expiry_time ? new Date(item.expiry_time) : null;
                   if (expiry && expiry >= now) {
                       statValidInvites.textContent = Math.max(0, (parseInt(statValidInvites.textContent) || 0) - 1);
                   }
               }
-              // 日志删除不影响统计
-              // ------------------------------------------------
 
-              // 乐观更新：直接从本地列表移除
               const idx = currentDataList.findIndex(d => d.id == item.id);
               if (idx !== -1) {
                   currentDataList.splice(idx, 1);
                   currentTotal = Math.max(0, currentTotal - 1);
               }
 
-              // 如果当前页变空且不是第一页，回退到上一页（此时必须请求数据）
               if (currentDataList.length === 0 && currentPage > 1) {
                   currentPage--;
                   loadData();
@@ -673,11 +665,8 @@
       });
       renderInviteCodes(response.codes, response.expiry_time);
       showToast(`成功生成 ${response.codes.length} 个邀请码`);
-
-      // ---------- 纯本地乐观更新：有效邀请码数 = 原值 + 生成数量 ----------
       const countNum = response.codes.length || 0;
       statValidInvites.textContent = (parseInt(statValidInvites.textContent) || 0) + countNum;
-      // -----------------------------------------------------------------
     } catch (error) {
       showToast(error.message || '生成邀请码失败');
     }

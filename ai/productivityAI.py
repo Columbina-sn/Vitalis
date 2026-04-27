@@ -38,11 +38,14 @@ def build_messages(
 
     events_text = ""
     if events:
-        events_text = "用户近期事件（按时间从近到远）：\n"
+        events_text = "用户近期的情绪转折记录（按时间从近到远）：\n"
         for ev in events:
-            events_text += f"- [{ev.created_at.strftime('%m/%d')}] {ev.event_summary}（用户情绪：{ev.initial_evaluation or '无'}）\n"
+            detail = ev.emotion_change_detail
+            if ev.trigger_keywords:
+                detail += f"（触发关键词：{ev.trigger_keywords}）"
+            events_text += f"- [{ev.created_at.strftime('%m/%d')}] {detail}\n"
     else:
-        events_text = "暂无近期事件。\n"
+        events_text = "暂无近期的情绪转折。\n"
 
     system_prompt = f"""{time_hint}
 
@@ -60,8 +63,9 @@ def build_messages(
    - 用户只是闲聊时，数值可不调整或微调1-2点。
    - 如果用户隔了几天才来，可以根据时间跨度和事件适当调整。
 
-2. **重大事件**：判断用户是否提到了一件值得记住的事。
-   - 事件概述和评价要简洁，别超过80字。像写便签，不像写报告。
+2. **情绪转折记录**：判断用户是否提到了一段值得记住的情绪变化。
+   - 事件概述（`event_summary`）：简洁描述情绪转折及原因，别超过80字，像写便签，不像写报告。
+   - 注意：这里只是记录情绪转折，不要生成用户感受评价。
 
 3. **改名意图**：
    - **用户是在给自己改昵称，不是在给小元改名字！**
@@ -71,7 +75,7 @@ def build_messages(
 4. **追加追问（follow_up_text）**：
    - 这段文字会拼在小元共情回复的后面，所以我只允许以下三种情况才生成，否则必须留空：
      a. 确认改名成功（如“已经记住你的新名字「xxx」啦～”）。
-     b. 确认事件已记录（如“我已经把这事记下来了。”）。
+     b. 确认情绪转折已记录（如“我已经把这事记下来了。”）。
      c. 状态出现明显变化（任一维度变化≥8）时，简短提醒一句（如“感觉你状态有点波动，记得照顾好自己。”），但禁止展开关心或追问细节。
    - 禁止任何其他形式的问候、关心、闲聊追问。那些事由共情助手自己完成，你不要插手。
    - 风格必须与 empathy_reply 自然衔接，不能突兀。
@@ -86,8 +90,7 @@ def build_messages(
     "meaning_direction": 最终值
   }},
   "should_add_event": true或false,
-  "event_summary": "事件概述",
-  "event_evaluation": "用户情绪评价",
+  "event_summary": "情绪转折描述",
   "update_nickname": "新昵称"或null,
   "follow_up_text": "你的追加追问"
 }}
@@ -119,7 +122,6 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "status_changes": result.get("status_changes", {}),
             "should_add_event": result.get("should_add_event", False),
             "event_summary": result.get("event_summary", ""),
-            "event_evaluation": result.get("event_evaluation", ""),
             "update_nickname": result.get("update_nickname"),
             "follow_up_text": result.get("follow_up_text", "")
         }
@@ -129,7 +131,6 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "status_changes": {},
             "should_add_event": False,
             "event_summary": "",
-            "event_evaluation": "",
             "update_nickname": None,
             "follow_up_text": ""
         }

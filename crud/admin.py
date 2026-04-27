@@ -243,16 +243,10 @@ async def get_users_paginated(
         page: int = 1,
         page_size: int = 20
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """分页返回用户列表，包含五维状态、事件数、对话数（仅 user 角色）"""
-    from models import UserStatus, Event
+    """分页返回用户列表，包含心理和谐指数、对话数（仅 user 角色）"""
+    from models import UserStatus
 
-    # 计数子查询
-    event_count_sub = (
-        select(func.count(Event.id))
-        .where(Event.user_id == User.id)
-        .correlate(User)
-        .scalar_subquery()
-    )
+    # 对话数子查询（仅 user 角色）
     conv_count_sub = (
         select(func.count(ConversationHistory.id))
         .where(
@@ -279,7 +273,6 @@ async def get_users_paginated(
             User.created_at,
             User.can_login,
             UserStatus.psychological_harmony_index,
-            event_count_sub.label("event_count"),
             conv_count_sub.label("conversation_count"),
         )
         .outerjoin(UserStatus, User.id == UserStatus.user_id)
@@ -300,7 +293,6 @@ async def get_users_paginated(
             "created_at": row.created_at,
             "can_login": row.can_login,
             "psychological_harmony_index": row.psychological_harmony_index,
-            "event_count": row.event_count,
             "conversation_count": row.conversation_count,
         }
         for row in rows

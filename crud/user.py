@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from typing import Optional
 
-from models import User, UserStatus, InviteCode, UserStatusHistory, Event
+from models import User, UserStatus, InviteCode, UserStatusHistory, EmotionShift
 from utills.psychological_harmony_index import calculate_phi
 from utills.security import get_hash_password
 
@@ -96,7 +96,7 @@ async def delete_user_account(db: AsyncSession, user: User) -> None:
     """
     物理删除用户及其所有关联数据（依赖数据库外键级联删除）
     - 用户状态表 user_status (ON DELETE CASCADE)
-    - 事件表 event (ON DELETE CASCADE)
+    - 情绪转折表 emotion_shifts (ON DELETE CASCADE)
     - 对话历史表 conversation_history (ON DELETE CASCADE)
     """
     await db.delete(user)
@@ -115,15 +115,13 @@ async def get_recent_events_by_user_id(
     db: AsyncSession, user_id: int, limit: int = 3
 ) -> list[str]:
     """
-    获取用户最近的事件概述（按创建时间倒序，限制条数）
+    获取用户最近的情绪转折描述（按创建时间倒序，限制条数）
+    原方法名不变，但数据来源改为 emotion_shifts
     """
-    from models import Event
-    from sqlalchemy import desc
-
     result = await db.execute(
-        select(Event.event_summary)
-        .where(Event.user_id == user_id)
-        .order_by(desc(Event.created_at))
+        select(EmotionShift.emotion_change_detail)
+        .where(EmotionShift.user_id == user_id)
+        .order_by(desc(EmotionShift.created_at))
         .limit(limit)
     )
     summaries = result.scalars().all()
@@ -169,7 +167,6 @@ async def get_status_history_by_dimension(
     return [{"recorded_at": row.recorded_at, "value": row.value} for row in rows]
 
 
-# crud/user.py
 async def get_user_export_data_html(db: AsyncSession, user_id: int) -> dict:
     """获取用于HTML导出的数据（不含对话历史）"""
     user = await db.get(User, user_id)
@@ -197,17 +194,18 @@ async def get_user_export_data_html(db: AsyncSession, user_id: int) -> dict:
             "updated": status_obj.updated_at.strftime("%Y年%m月%d日 %H:%M"),
         }
 
+    # 查询所有情绪转折
     events_result = await db.execute(
-        select(Event)
-        .where(Event.user_id == user_id)
-        .order_by(Event.created_at.desc())
+        select(EmotionShift)
+        .where(EmotionShift.user_id == user_id)
+        .order_by(EmotionShift.created_at.desc())
     )
-    events = events_result.scalars().all()
+    emotion_shifts = events_result.scalars().all()
     events_data = []
-    for e in events:
+    for e in emotion_shifts:
         events_data.append({
-            "summary": e.event_summary,
-            "evaluation": e.initial_evaluation or "无评价",
+            "summary": e.emotion_change_detail,          # 用情绪变化描述代替原事件概述
+            "evaluation": "",                            # 新表无评价字段，留空
             "time": e.created_at.strftime("%Y年%m月%d日 %H:%M"),
         })
 

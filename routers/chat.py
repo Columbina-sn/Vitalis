@@ -12,7 +12,7 @@ from schemas.chat import ChatRequest, ConversationHistoryResponse
 from crud.chat import (
     get_user_full_info,
     update_user_status,
-    add_event,
+    add_emotion_shift,
     add_conversation_history,
     get_conversations_cursor_paginated,
     get_conversations_by_date
@@ -31,22 +31,20 @@ async def receive_user_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. 获取用户完整信息（状态、事件、最近对话）
+    # 1. 获取用户完整信息（状态、情绪转折、最近对话）
     user_info = await get_user_full_info(db, current_user.id)
     if user_info is None:
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # ========== 情感AI（小元的主体回复） ==========
-    # 构建标准 messages（含 system 指令 + 历史对话 + 当前用户消息）
     empathy_messages = empathy_build_messages(req.message, user_info)
     empathy_result = await empathy_analog_ai(empathy_messages)
     empathy_reply = empathy_result["reply"]
 
-    # 记录用户消息到对话历史（此时还没提交，后面统一 commit）
+    # 记录用户消息到对话历史
     await add_conversation_history(db, current_user.id, RoleEnum.user, req.message)
 
-    # ========== 工作AI（状态、事件、改名、追问） ==========
-    # 注意：传入 empathy_reply，让 productivity 也能看到小元刚说的内容
+    # ========== 工作AI（状态、情绪转折、改名、追问） ==========
     productivity_messages = productivity_build_messages(
         user_message=req.message,
         empathy_reply=empathy_reply,
@@ -62,13 +60,13 @@ async def receive_user_message(
         if updated_status:
             status_changes["psychological_harmony_index"] = updated_status.psychological_harmony_index
 
-    # 事件记录
+    # 记录情绪转折（原事件记录）
     if productivity_result["should_add_event"]:
-        await add_event(
+        await add_emotion_shift(
             db,
             current_user.id,
-            productivity_result["event_summary"],
-            productivity_result["event_evaluation"],
+            emotion_change_detail=productivity_result["event_summary"],
+            trigger_keywords=None   # 由 AI 决定的 keywords 可留空或后续扩展
         )
 
     # ---------- 构建最终回复 ----------

@@ -53,7 +53,6 @@ class UserInAdminList(BaseModel):
     invite_code: Optional[str] = None
     created_at: datetime
     psychological_harmony_index: int
-    event_count: int
     conversation_count: int
     can_login: bool
 

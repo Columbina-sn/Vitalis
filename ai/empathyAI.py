@@ -31,14 +31,17 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
             f"- 心理和谐指数(PHI): {status.psychological_harmony_index}\n"
         )
 
-    # ---------- 近期事件（近7天） ----------
+    # ---------- 近期情绪转折（近7天） ----------
     events_text = ""
     if events:
-        events_text = "用户近期记录的事件（按时间从近到远，最上面是最新的）：\n"
+        events_text = "用户近期的情绪转折记录（按时间从近到远，最上面是最新的）：\n"
         for ev in events:
-            events_text += f"- [{ev.created_at.strftime('%m/%d')}] {ev.event_summary}（用户当时的感受：{ev.initial_evaluation or '无'}）\n"
+            detail = ev.emotion_change_detail
+            if ev.trigger_keywords:
+                detail += f"（触发关键词：{ev.trigger_keywords}）"
+            events_text += f"- [{ev.created_at.strftime('%m/%d')}] {detail}\n"
     else:
-        events_text = "用户近期没有记录重大事件。\n"
+        events_text = "用户近期没有记录情绪转折。\n"
 
     # ---------- 核心 system 消息 ----------
     system_prompt = f"""{time_hint}

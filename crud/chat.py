@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import User, UserStatus, Event, ConversationHistory, RoleEnum, UserStatusHistory
+from models import User, UserStatus, EmotionShift, ConversationHistory, RoleEnum, UserStatusHistory
 from utills.psychological_harmony_index import calculate_phi
 
 
@@ -14,12 +14,12 @@ async def get_user_full_info(
     db: AsyncSession, user_id: int
 ) -> Optional[Dict[str, Any]]:
     """
-    获取用户的完整信息：状态、近7天内的重大事件、最近10条用户的对话内容
+    获取用户的完整信息：状态、近7天内的情绪转折、最近10条对话记录
     Args:
         db: 数据库会话
         user_id: 用户 ID
     Returns:
-        包含 status, events, recent_user_messages 的字典；如果用户不存在则返回 None
+        包含 status, events (情绪转折列表), recent_conversations 的字典；如果用户不存在则返回 None
     """
     # 1. 检查用户是否存在
     user = await db.get(User, user_id)
@@ -32,16 +32,16 @@ async def get_user_full_info(
     )
     status = status_result.scalar_one_or_none()
 
-    # 3. 获取近7天内的重大事件（按创建时间倒序）
-    ninety_days_ago = datetime.now() - timedelta(days=7)
+    # 3. 获取近7天内的情绪转折（按创建时间倒序）
+    seven_days_ago = datetime.now() - timedelta(days=7)
     events_result = await db.execute(
-        select(Event)
-        .where(Event.user_id == user_id, Event.created_at >= ninety_days_ago)
-        .order_by(desc(Event.created_at))
+        select(EmotionShift)
+        .where(EmotionShift.user_id == user_id, EmotionShift.created_at >= seven_days_ago)
+        .order_by(desc(EmotionShift.created_at))
     )
-    events = events_result.scalars().all()
+    emotion_shifts = events_result.scalars().all()
 
-    # 4. 获取最近10条用户对话
+    # 4. 获取最近10条对话记录（包含 user 和 assistant，按创建时间倒序）
     messages_result = await db.execute(
         select(ConversationHistory)
         .where(ConversationHistory.user_id == user_id)
@@ -52,7 +52,7 @@ async def get_user_full_info(
 
     return {
         "status": status,
-        "events": events,
+        "events": emotion_shifts,          # 实际为 EmotionShift 对象列表，但保持 key 名兼容
         "recent_conversations": recent_conversations,
     }
 
@@ -109,32 +109,32 @@ async def update_user_status(
     return status
 
 
-async def add_event(
+async def add_emotion_shift(
     db: AsyncSession,
     user_id: int,
-    event_summary: str,
-    initial_evaluation: Optional[str] = None
-) -> Event:
+    emotion_change_detail: str,
+    trigger_keywords: Optional[str] = None
+) -> EmotionShift:
     """
-    增加一条重大事件记录
+    增加一条情绪转折记录
 
     Args:
         db: 数据库会话
         user_id: 用户 ID
-        event_summary: 事件概述（最长100字符）
-        initial_evaluation: 初步评价（可选，最长100字符）
+        emotion_change_detail: 情绪变化的详细描述
+        trigger_keywords: 触发该情绪转折的关键词（可选）
 
     Returns:
-        创建的 Event 对象
+        创建的 EmotionShift 对象
     """
-    event = Event(
+    shift = EmotionShift(
         user_id=user_id,
-        event_summary=event_summary[:100],
-        initial_evaluation=initial_evaluation
+        emotion_change_detail=emotion_change_detail,
+        trigger_keywords=trigger_keywords
     )
-    db.add(event)
+    db.add(shift)
     await db.flush()
-    return event
+    return shift
 
 
 async def add_conversation_history(

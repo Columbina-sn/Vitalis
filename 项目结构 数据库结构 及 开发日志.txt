@@ -1260,7 +1260,104 @@ Vitalis/
 - 新增 user_schedule 用户日程表，支持短期任务、长期目标、倒数日、纪念日、生日等多种日程类型，为后续前端提醒与 AI 主动关怀提供数据基础。
 - 以上四张新表均通过外键关联 users 表，支持级联删除。
 - 同步更新 initialization.sql（完整版）、提供 migration_v2.sql 增量迁移脚本（自动删除旧 event 表并创建新表）。
-- 同步更新 models.py，移除 Event 模型，新增 EmotionShift、MemorySnapshot、MemoryAnchor、UserSchedule 四个 ORM 模型，原有其他模型字段、默认值、约束毫发无损。
+- 同步更新 models.py，移除 Event 模型，新增 EmotionShift、MemorySnapshot、MemoryAnchor、UserSchedule 四个 ORM 模型。
+
+- OK工作量大的可怕，呜呜呜…………
+
+一、后端修改
+
+1. models.py
+   - 移除 Event 模型类
+   - 新增 EmotionShift、MemorySnapshot、MemoryAnchor、UserSchedule 四个模型类
+   - 其他模型（User、UserStatus、InviteCode、ConversationHistory、Comment、UserStatusHistory、SystemConfig、AdminLog）保持不变
+
+2. crud/chat.py
+   - 导入 EmotionShift 替代 Event
+   - get_user_full_info()：
+     查询近7天数据从 Event 改为 EmotionShift
+     返回字典中 'events' 键现在包含 EmotionShift 对象列表
+   - add_event() 重写为 add_emotion_shift()：
+     参数改为 emotion_change_detail 和 trigger_keywords
+     存入 EmotionShift 表而非原 Event 表
+
+3. crud/user.py
+   - 导入 EmotionShift 替代 Event
+   - get_recent_events_by_user_id()：
+     查询字段从 event_summary 改为 emotion_change_detail
+     来源表从 Event 改为 EmotionShift
+     返回最近的情绪转折描述列表
+   - get_user_export_data_html()：
+     查询来源从 Event 改为 EmotionShift
+     导出数据中'summary'字段取emotion_change_detail，'evaluation'留空
+
+4. crud/admin.py
+   - 移除 Event 导入
+   - get_users_paginated()：
+     删除 event_count 子查询
+     SELECT 字段列表中移除 event_count
+     返回字典列表中移除 event_count 字段
+
+5. schemas/admin.py
+   - UserInAdminList 模型移除 event_count 字段
+   - 现在只包含：id, phone, nickname, invite_code, created_at, psychological_harmony_index, conversation_count, can_login
+
+6. routers/chat.py
+   - 导入 add_emotion_shift 替代 add_event
+   - 调用处改为 add_emotion_shift(db, user_id, emotion_change_detail=..., trigger_keywords=None)
+
+7. ai/empathyAI.py
+   - build_messages() 中背景事件文本改为读取 emotion_change_detail 字段
+   - events_text 构造逻辑适配 EmotionShift 对象
+
+8. ai/productivityAI.py
+   - build_messages() 中：
+     events_text 构造逻辑适配 EmotionShift 对象
+     system prompt 中"重大事件"说明改为"值得记录的情绪转折"
+     output JSON 中不再要求 event_evaluation 字段
+   - analog_ai() 返回字典中移除 event_evaluation
+
+
+二、前端修改
+
+1. dashboard.html
+   - 移除 status-board 区域中的 events-card 整个区块
+   - 包括：<div class="events-card">、<div class="events-title">、<div id="eventList">、<button id="toggleEventsBtn"> 等
+   - 状态区现在仅保留 stats-section（五维状态进度条）
+
+2. dashboard.css
+   - 删除以下所有与事件相关的样式规则：
+     .events-card
+     .events-title
+     .toggle-events-btn
+     .toggle-events-btn:hover
+     .toggle-events-btn:focus
+     .hidden-events-message
+     .event-item
+   - 删除"事件卡片加一条很细的顶部高光线"注释下的 .events-card 样式
+   - 其余样式（背景、Toast、主界面、聊天区、状态区、弹窗等）保持不变
+
+3. dashboard.js
+   - 移除 DOM 变量：toggleEventsBtn
+   - 移除全局变量：eventsHidden、hiddenMessageDiv
+   - 移除函数：fetchAndRenderRecentEvents()、renderEventList()、createHiddenMessageContainer()、toggleEventsVisibility()
+   - 移除 init() 中的调用：
+     await fetchAndRenderRecentEvents();
+     createHiddenMessageContainer();
+   - 移除 bindEvents() 中的事件绑定：
+     if (toggleEventsBtn) { toggleEventsBtn.addEventListener(...); }
+   - 移除 sendMessage() 打字机完成回调中的：
+     await fetchAndRenderRecentEvents();
+   - 其余逻辑（背景动画、状态渲染、聊天发送、历史分页、日期跳转、个人弹窗、引导剧情等）均保持不变
+
+4. admin.js
+   - renderTable() 函数中：
+     用户表格 configs.users.headers 移除"事件数"列
+     configs.users.widths 移除对应宽度值
+     用户行渲染 configs.users.renderRow 移除 item.event_count 的渲染
+
+- 经测试，没有大问题，就还有点异步竞态问题。
+- 甚至表现莫名变得还不错？
+- 今天先到这，明天开始大展手脚改ai。
 
 
 ----------==========问题与解决==========----------

@@ -4,20 +4,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="在元气岛与AI小元对话，实时查看五维状态变化。记录重要事件，接收温暖鼓励，让每一天的自我探索都充满元气。">
-  <meta name="keywords" content="AI对话,五维状态,身心活力,情绪基调,自我价值,事件记录,元气岛,Vitalis">
+  <meta name="description" content="在元气岛与AI小元对话，实时查看五维状态变化。记录情绪转折，接收温暖鼓励，让每一天的自我探索都充满元气。">
+  <meta name="keywords" content="AI对话,五维状态,身心活力,情绪基调,自我价值,心理和谐,元气岛,Vitalis">
   <title>元气岛 · Vitalis</title>
   <link rel="shortcut icon" href="/HTML/favicon_webtest.ico" type="image/x-icon">
   <link rel="stylesheet" href="/HTML/base.css">
   <link rel="stylesheet" href="/HTML/Dashboard/dashboard.css">
-  <!-- Font Awesome 6 -->
-  <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"> -->
-  <!-- <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.0.0-beta3/css/all.min.css"> -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
   <!-- 背景条纹 -->
-  <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
   <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
   <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
   <div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div><div class="bg"></div>
@@ -68,14 +64,7 @@
 
       <div class="status-board">
         <div class="stats-section" id="statsContainer"></div>
-        <div class="events-card">
-          <div class="events-title">
-            <span><i class="fas fa-book-open"></i> 最近事件记录</span>
-            <button id="toggleEventsBtn" class="toggle-events-btn" title="隐藏事件">隐藏</button>
-          </div>
-          <div id="eventList"></div>
-        </div>
-        <!-- <button id="finishInitBtn" class="init-btn">✨ 暂时没用但不知道会不会被用上的按钮</button> -->
+        <!-- 已移除最近事件记录卡片 -->
       </div>
     </div>
   </div>
@@ -111,7 +100,7 @@
     </div>
   </div>
 
-  <!-- 在现有所有弹窗之后，新增历史折线图弹窗 -->
+  <!-- 历史折线图弹窗 -->
   <div id="historyChartModal" class="custom-confirm-overlay" style="display: none;">
       <div class="custom-confirm-box chart-modal-box" style="width: 560px; max-width: 90%; padding: 20px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -127,7 +116,7 @@
       </div>
   </div>
 
-  <!-- 自定义二次确认弹窗（无输入框） -->
+  <!-- 自定义二次确认弹窗 -->
   <div id="customConfirm" class="custom-confirm-overlay" style="display: none;">
     <div class="custom-confirm-box">
       <i class="fas fa-question-circle" style="font-size: 2.5rem; color: #d9a26c;"></i>
@@ -139,7 +128,7 @@
     </div>
   </div>
 
-  <!-- 密码输入弹窗（用于注销） -->
+  <!-- 密码输入弹窗（注销用） -->
   <div id="passwordModal" class="custom-confirm-overlay" style="display: none;">
     <div class="custom-confirm-box">
       <i class="fas fa-lock" style="font-size: 2.5rem; color: #d9a26c;"></i>
@@ -176,9 +165,7 @@
         </h3>
         <i class="fas fa-times" id="closeDateHistoryModal" style="cursor: pointer; font-size: 1.4rem; color: #b87a48; opacity: 0.7;"></i>
       </div>
-      <!-- 聊天记录容器（复用聊天区样式） -->
       <div class="date-history-messages messages" id="dateHistoryMessageList" style="max-height: 60vh; overflow-y: auto;">
-        <!-- 动态渲染消息 -->
       </div>
       <div id="dateHistoryNoDataMsg" style="text-align: center; color: #b0a088; padding: 40px 0; display: none;">
         🍂 这一天没有聊天记录，是不是记错了日子？

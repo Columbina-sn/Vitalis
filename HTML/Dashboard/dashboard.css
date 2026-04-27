@@ -596,69 +596,6 @@
     max-height: 280px;
 }
 
-.events-card {
-  background: #fffcf0; /* 背景色 */
-  border-radius: 28px; /* 圆角28px */
-  padding: 16px; /* 内边距16px */
-  border: 1px solid #f0dfbc; /* 边框 */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03); /* 外阴影 */
-  cursor: default;
-}
-
-.events-title {
-  font-size: 1rem; /* 字体大小 */
-  font-weight: 600; /* 字体粗细 */
-  color: #b87a48; /* 文字颜色 */
-  margin-bottom: 12px; /* 下边距 */
-  display: flex; /* 弹性布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 8px; /* 图标与文字间距 */
-  justify-content: space-between;
-}
-
-/* 隐藏/显示按钮样式 */
-.toggle-events-btn {
-  background: transparent;
-  border: none;
-  color: #b87a48;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-  padding: 4px 8px;
-  border-radius: 20px;
-  outline: none;
-}
-.toggle-events-btn:hover {
-  opacity: 1;
-  background: rgba(255, 245, 225, 0.6);
-}
-.toggle-events-btn:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-.hidden-events-message {
-  background: #fffcf0;
-  border-radius: 20px;
-  padding: 8px;
-  margin-top: 8px;
-  border: 1px dashed #f0dfbc;
-}
-
-.event-item {
-  font-size: 0.85rem; /* 字体大小 */
-  background: #fffef5; /* 背景色 */
-  padding: 8px 12px; /* 内边距 */
-  border-radius: 20px; /* 圆角20px */
-  margin-bottom: 8px; /* 下边距 */
-  border-left: 4px solid #f3c28c; /* 左侧装饰边框 */
-  color: #7a5a3a; /* 文字颜色 */
-  word-break: break-word; /* 长单词换行 */
-  cursor: default;
-}
-
 .init-btn {
   background: #f8e6c8; /* 背景色 */
   border: none; /* 无边框 */

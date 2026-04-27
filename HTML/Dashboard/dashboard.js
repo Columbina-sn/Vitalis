@@ -329,14 +329,11 @@
     const profileInviteCodeSpan = document.getElementById('profileInviteCode');
     const profileLogoutBtn = document.getElementById('profileLogoutBtn');
     const profileLeft = document.querySelector('.profile-left');
-    const toggleEventsBtn = document.getElementById('toggleEventsBtn');
 
     // ======================== 全局状态 ========================
     let userStatus = { physical: 50, emotional: 50, relation: 50, worth: 50, meaning: 50, phi: 50 };
     let isDashboardReady = false;
     let isSending = false;
-    let eventsHidden = false;
-    let hiddenMessageDiv = null;
 
     // ======================== 渲染五维状态 ========================
     const statConfig = [
@@ -1122,7 +1119,6 @@
                 if (response.status_updates) {
                     updateStatusFromBackend(response.status_updates);
                 }
-                await fetchAndRenderRecentEvents();
             });
 
         } catch (err) {
@@ -1251,84 +1247,6 @@
         messageContainer.insertBefore(msg2, messageContainer.firstChild);
         messageContainer.insertBefore(msg1, messageContainer.firstChild);
         topWelcomeAdded = true;
-    }
-
-    // ======================== 获取重大事件 ========================
-    async function fetchAndRenderRecentEvents() {
-        try {
-            const data = await window.http({
-                method: 'GET',
-                url: '/user/recent-events',
-                needAuth: true
-            });
-            const events = data.events || [];
-            renderEventList(events);
-        } catch (err) {
-            console.warn('获取最近事件失败', err);
-            renderEventList([]);
-        }
-    }
-
-    function renderEventList(events) {
-        const eventContainer = document.getElementById('eventList');
-        if (!eventContainer) return;
-        if (eventsHidden) return;
-
-        eventContainer.innerHTML = '';
-        if (!events.length) {
-            const emptyMsg = document.createElement('div');
-            emptyMsg.className = 'event-item';
-            emptyMsg.style.opacity = '0.7';
-            emptyMsg.textContent = '暂无记录的重要事件';
-            eventContainer.appendChild(emptyMsg);
-            return;
-        }
-
-        events.slice(0, 3).forEach(summary => {
-            const item = document.createElement('div');
-            item.className = 'event-item';
-            item.textContent = summary;
-            eventContainer.appendChild(item);
-        });
-    }
-
-    function createHiddenMessageContainer() {
-        if (hiddenMessageDiv) return hiddenMessageDiv;
-        const container = document.createElement('div');
-        container.id = 'hiddenEventsMessage';
-        container.className = 'hidden-events-message';
-        container.style.display = 'none';
-        container.innerHTML = `
-            <div style="text-align: center; color: #7a5a3a; font-size: 0.85rem; line-height: 1.6; padding: 16px 8px;">
-                🍃 已隐藏重要事件<br>
-                但它们对小元都很重要<br>
-                我都记在脑子里啦～
-            </div>
-        `;
-        const eventList = document.getElementById('eventList');
-        eventList.parentNode.insertBefore(container, eventList.nextSibling);
-        hiddenMessageDiv = container;
-        return container;
-    }
-
-    async function toggleEventsVisibility() {
-        const eventList = document.getElementById('eventList');
-        const msgDiv = createHiddenMessageContainer();
-        
-        if (!eventsHidden) {
-            eventList.style.display = 'none';
-            msgDiv.style.display = 'block';
-            toggleEventsBtn.textContent = '显示';
-            toggleEventsBtn.title = '显示事件';
-            eventsHidden = true;
-        } else {
-            eventList.style.display = 'block';
-            msgDiv.style.display = 'none';
-            toggleEventsBtn.textContent = '隐藏';
-            toggleEventsBtn.title = '隐藏事件';
-            eventsHidden = false;
-            await fetchAndRenderRecentEvents();
-        }
     }
 
     // ======================== 新手引导剧情 ========================
@@ -1567,17 +1485,11 @@
 
         await loadMoreHistory(true);
 
-        await fetchAndRenderRecentEvents();
-        createHiddenMessageContainer();
-
         isDashboardReady = true;
     }
 
     function bindEvents() {
         sendBtn.addEventListener('click', () => sendMessage(chatInput.value));
-        if (toggleEventsBtn) {
-            toggleEventsBtn.addEventListener('click', toggleEventsVisibility);
-        }
         setDefaultDate();
         bindDateInputFallback();
         if (dateJumpConfirmBtn) {
