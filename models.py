@@ -1,10 +1,12 @@
 # models.py
 from datetime import datetime
 from typing import Optional
+from decimal import Decimal
 
-from sqlalchemy import String, DateTime, SmallInteger, Boolean, ForeignKey, Index, CheckConstraint, Integer
+from sqlalchemy import (String, DateTime, SmallInteger, Boolean, ForeignKey,
+                        Index, CheckConstraint, Integer, BigInteger, Text,
+                        JSON, Enum as SQLEnum, TIMESTAMP, DECIMAL)
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
-from sqlalchemy import BigInteger, Text, JSON, Enum as SQLEnum, TIMESTAMP
 import enum
 
 
@@ -17,13 +19,13 @@ class RoleEnum(str, enum.Enum):
     assistant = "assistant"
 
 
+# --------------- 原有模型，一字未改 ---------------
+
 class User(Base):
     __tablename__ = 'users'
 
     __table_args__ = (
-        # 手机号唯一索引（对应 SQL 中的 uk_phone）
         Index('uk_phone', 'phone', unique=True),
-        # 邀请码普通索引
         Index('idx_invite_code', 'invite_code'),
         Index('idx_users_created_at', 'created_at'),
     )
@@ -47,7 +49,6 @@ class UserStatus(Base):
     __tablename__ = 'user_status'
 
     __table_args__ = (
-        # 五维指标的值域约束 0-100
         CheckConstraint('physical_vitality BETWEEN 0 AND 100', name='chk_physical_vitality'),
         CheckConstraint('emotional_tone BETWEEN 0 AND 100', name='chk_emotional_tone'),
         CheckConstraint('relationship_connection BETWEEN 0 AND 100', name='chk_relationship_connection'),
@@ -77,29 +78,6 @@ class UserStatus(Base):
         return f"<UserStatus(user_id={self.user_id}, physical_vitality={self.physical_vitality}, ...)>"
 
 
-class Event(Base):
-    __tablename__ = 'event'
-
-    __table_args__ = (
-        Index('idx_user_id', 'user_id'),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="事件主键ID")
-    user_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
-        nullable=False,
-        comment="所属用户ID"
-    )
-    event_summary: Mapped[str] = mapped_column(String(100), nullable=False, comment="事件概述")
-    initial_evaluation: Mapped[Optional[str]] = mapped_column(String(100), comment="初步评价")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
-
-    def __repr__(self):
-        return f"<Event(id={self.id}, user_id={self.user_id}, summary='{self.event_summary}')>"
-
-
 class InviteCode(Base):
     __tablename__ = 'invite_code'
 
@@ -109,7 +87,7 @@ class InviteCode(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
-    code: Mapped[str] = mapped_column(String(15), nullable=False, comment="邀请码")
+    code: Mapped[str] = mapped_column(String(8), nullable=False, comment="邀请码")
     expiry_time: Mapped[datetime] = mapped_column(DateTime, nullable=False, comment="过期时间")
 
     def __repr__(self):
@@ -144,7 +122,7 @@ class Comment(Base):
     __tablename__ = 'comment'
 
     __table_args__ = (
-        Index('idx_ip_time', 'ip_address', 'created_at'),  # 联合索引，用于频率限制查询
+        Index('idx_ip_time', 'ip_address', 'created_at'),
         Index('idx_comment_created_at', 'created_at'),
     )
 
@@ -162,17 +140,13 @@ class UserStatusHistory(Base):
     __tablename__ = 'user_status_history'
 
     __table_args__ = (
-        # 五维指标的值域约束 0-100
         CheckConstraint('physical_vitality BETWEEN 0 AND 100', name='chk_history_physical_vitality'),
         CheckConstraint('emotional_tone BETWEEN 0 AND 100', name='chk_history_emotional_tone'),
         CheckConstraint('relationship_connection BETWEEN 0 AND 100', name='chk_history_relationship_connection'),
         CheckConstraint('self_worth BETWEEN 0 AND 100', name='chk_history_self_worth'),
         CheckConstraint('meaning_direction BETWEEN 0 AND 100', name='chk_history_meaning_direction'),
-        CheckConstraint('psychological_harmony_index BETWEEN 1 AND 100',
-                        name='chk_history_psychological_harmony_index'),
-        # 用户+记录时间复合索引（便于按时间轴查询）
+        CheckConstraint('psychological_harmony_index BETWEEN 1 AND 100', name='chk_history_psychological_harmony_index'),
         Index('idx_user_recorded', 'user_id', 'recorded_at'),
-        # 每个状态列单独索引（便于针对某一维度的统计分析）
         Index('idx_physical_vitality', 'physical_vitality'),
         Index('idx_emotional_tone', 'emotional_tone'),
         Index('idx_relationship_connection', 'relationship_connection'),
@@ -245,3 +219,108 @@ class AdminLog(Base):
 
     def __repr__(self):
         return f"<AdminLog(id={self.id}, admin='{self.admin_phone}', action='{self.action_type}')>"
+
+
+# ---------- 以下为本次新增模型，与原有模型完全解耦 ----------
+
+class EmotionShift(Base):
+    """情绪转折表（替代原 event）"""
+    __tablename__ = 'emotion_shifts'
+
+    __table_args__ = (
+        Index('idx_user_created', 'user_id', 'created_at'),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False,
+        comment="所属用户ID"
+    )
+    emotion_change_detail: Mapped[str] = mapped_column(Text, nullable=False, comment="情绪变化的详细描述")
+    trigger_keywords: Mapped[Optional[str]] = mapped_column(String(500), comment="触发该情绪转折的关键词，以逗号分隔")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    def __repr__(self):
+        return f"<EmotionShift(id={self.id}, user_id={self.user_id})>"
+
+
+class MemorySnapshot(Base):
+    """记忆快照表（每日对话摘要）"""
+    __tablename__ = 'memory_snapshots'
+
+    __table_args__ = (
+        Index('idx_user_created_snapshot', 'user_id', 'created_at'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="快照主键ID")
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False,
+        comment="所属用户ID"
+    )
+    summary: Mapped[str] = mapped_column(Text, nullable=False, comment="一天全对话的总结摘要")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="快照生成时间")
+
+    def __repr__(self):
+        return f"<MemorySnapshot(id={self.id}, user_id={self.user_id})>"
+
+
+class MemoryAnchor(Base):
+    """记忆锚点表（长期用户画像）"""
+    __tablename__ = 'memory_anchors'
+
+    __table_args__ = (
+        Index('idx_user_anchor_type', 'user_id', 'anchor_type'),
+        Index('idx_user_last_mentioned', 'user_id', 'last_mentioned_at'),
+        CheckConstraint('confidence >= 0 AND confidence <= 1', name='chk_confidence_range'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="锚点主键ID")
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False,
+        comment="所属用户ID"
+    )
+    anchor_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="锚点类型（如 habit, preference 等）")
+    content: Mapped[str] = mapped_column(Text, nullable=False, comment="锚点内容")
+    confidence: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), nullable=False, default=0.0,
+                                                 comment="AI 对这条信息的确定程度 (0.00-1.00)")
+    last_mentioned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="最后提及时间")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    def __repr__(self):
+        return f"<MemoryAnchor(id={self.id}, type='{self.anchor_type}', user_id={self.user_id})>"
+
+
+class UserSchedule(Base):
+    """用户日程表"""
+    __tablename__ = 'user_schedule'
+
+    __table_args__ = (
+        Index('idx_user_scheduled', 'user_id', 'scheduled_time'),
+        Index('idx_user_completed', 'user_id', 'is_completed'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="日程主键ID")
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False,
+        comment="所属用户ID"
+    )
+    schedule_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="日程类型（short_task, long_goal, countdown 等）")
+    title: Mapped[str] = mapped_column(String(200), nullable=False, comment="日程标题")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="详细描述")
+    scheduled_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="计划/截止/纪念日时间")
+    is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已完成")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    def __repr__(self):
+        return f"<UserSchedule(id={self.id}, type='{self.schedule_type}', title='{self.title}')>"

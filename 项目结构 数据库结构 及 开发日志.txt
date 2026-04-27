@@ -65,108 +65,142 @@ Vitalis/
 
 ----------==========数据库结构==========----------
 1. 用户表（users）
-   - 用来存每个注册用户的基本信息
-   - 字段：
-     * id：用户编号，自动增加，主键
-     * phone：手机号，不能重复，用于登录
-     * password：登录密码（已加密）
-     * nickname：昵称，可选
-     * avatar：头像图片的url
-     * has_seen_intro：是否看过新手引导（0=没看过，1=看过）
-     * can_login：是否允许登录，TINYINT(1)，默认值为 1（允许）。用于管理员后台控制用户登录权限（例如禁用违规账号）。
-     * invite_code：注册时使用的邀请码
-     * created_at：注册时间
-     * updated_at：信息最后更新时间
+    - 用来存每个注册用户的基本信息
+    - 字段：
+      * id：用户编号，自动增加，主键
+      * phone：手机号，不能重复，用于登录
+      * password：登录密码（已加密）
+      * nickname：昵称，可选
+      * avatar：头像图片的url
+      * has_seen_intro：是否看过新手引导（0=没看过，1=看过）
+      * can_login：是否允许登录，TINYINT(1)，默认值为 1（允许）。用于管理员后台控制用户登录权限（例如禁用违规账号）。
+      * invite_code：注册时使用的邀请码
+      * created_at：注册时间
+      * updated_at：信息最后更新时间
 
 2. 用户状态表（user_status）
-   - 每个用户有一条记录，记录五个方面的活力指标（0-100分）
-   - 字段：
-     * user_id：用户编号（关联用户表）
-     * physical_vitality：身心活力值，默认50
-     * emotional_tone：情绪基调值，默认50
-     * relationship_connection：关系联结值，默认50
-     * self_worth：自我价值值，默认50
-     * meaning_direction：意义方向值，默认50
-     * psychological_harmony_index：心理和谐指数，TINYINT UNSIGNED，取值范围 1-100，默认值 50。代表用户在心理层面的整体和谐程度，与其他五个维度共同构成完整的心理健康画像。
-     * created_at：记录创建时间
-     * updated_at：记录更新时间
+    - 每个用户有一条记录，记录五个方面的活力指标（0-100分）
+    - 字段：
+      * user_id：用户编号（关联用户表）
+      * physical_vitality：身心活力值，默认50
+      * emotional_tone：情绪基调值，默认50
+      * relationship_connection：关系联结值，默认50
+      * self_worth：自我价值值，默认50
+      * meaning_direction：意义方向值，默认50
+      * psychological_harmony_index：心理和谐指数，TINYINT UNSIGNED，取值范围 1-100，默认值 50。代表用户在心理层面的整体和谐程度，与其他五个维度共同构成完整的心理健康画像。
+      * created_at：记录创建时间
+      * updated_at：记录更新时间
 
-3. 重大事件表（event）
-   - 用户记录自己经历的重要事情
-   - 字段：
-     * id：事件编号，自动增加
-     * user_id：哪个用户的事件
-     * event_summary：事件一句话概述
-     * initial_evaluation：用户对事件的初步评价（比如情绪或看法）
-     * created_at：事件记录时间
-     * updated_at：最后修改时间
+3. 情绪转折表（emotion_shifts）
+    - 字段：
+      * id：主键，自增
+      * user_id：用户编号（关联用户表，级联删除）
+      * emotion_change_detail：情绪变化的详细描述（TEXT）
+      * trigger_keywords：触发该情绪转折的关键词，逗号分隔（最长500字符）
+      * created_at：创建时间
+      * updated_at：更新时间
+    - 索引：(user_id, created_at)
 
 4. 邀请码表（invite_code）
-   - 存放系统生成的、有时效的邀请码，供新用户注册时使用
-   - 字段：
-     * id：邀请码编号
-     * code：邀请码字符串（8位）
-     * expiry_time：过期时间，超过这个时间就不能用了
+    - 存放系统生成的、有时效的邀请码，供新用户注册时使用
+    - 字段：
+      * id：邀请码编号
+      * code：邀请码字符串（8位）
+      * expiry_time：过期时间，超过这个时间就不能用了
 
 5. 对话历史表（conversation_history）
-   - 记录用户和AI助手之间的聊天内容
-   - 字段：
-     * id：对话记录编号
-     * user_id：用户编号
-     * role：消息是谁发的（'user'=用户，'assistant'=AI）
-     * content：消息的具体文字内容
-     * metadata：附加的JSON数据，比如AI给出的状态变更建议等
-     * created_at：消息发送时间
+    - 记录用户和AI助手之间的聊天内容
+    - 字段：
+      * id：对话记录编号
+      * user_id：用户编号
+      * role：消息是谁发的（'user'=用户，'assistant'=AI）
+      * content：消息的具体文字内容
+      * metadata：附加的JSON数据，比如AI给出的状态变更建议等
+      * created_at：消息发送时间
 
 6. 评论表（comment）
-   - 很简单的表，只存评论内容、IP地址和时间
-   - 字段：
-     * id：评论编号
-     * content：评论内容
-     * ip_address：评论者IP地址
-     * replied：是否已回复，TINYINT(1)，默认值为 0（未回复）。管理员可通过后台标记某条评论是否已被阅读或回应，以便筛选待处理反馈。
-     * created_at：评论时间
+    - 很简单的表，只存评论内容、IP地址和时间
+    - 字段：
+      * id：评论编号
+      * content：评论内容
+      * ip_address：评论者IP地址
+      * replied：是否已回复，TINYINT(1)，默认值为 0（未回复）。管理员可通过后台标记某条评论是否已被阅读或回应，以便筛选待处理反馈。
+      * created_at：评论时间
 
 7. 用户状态历史表（user_status_history）
-   - 记录用户每次五维状态更新的完整快照，便于查看状态变化轨迹
-   - 字段：
-     * id：历史记录编号，自动增加，主键
-     * user_id：用户编号（关联用户表）
-     * physical_vitality：身心活力值（0-100）
-     * emotional_tone：情绪基调值（0-100）
-     * relationship_connection：关系联结值（0-100）
-     * self_worth：自我价值值（0-100）
-     * meaning_direction：意义方向值（0-100）
-     * psychological_harmony_index：与 user_status 表保持一致，记录每次状态快照时的心理和谐指数。
-     * recorded_at：状态实际更新的时间点
-     * created_at：这条历史记录的入库时间
+    - 记录用户每次五维状态更新的完整快照，便于查看状态变化轨迹
+    - 字段：
+      * id：历史记录编号，自动增加，主键
+      * user_id：用户编号（关联用户表）
+      * physical_vitality：身心活力值（0-100）
+      * emotional_tone：情绪基调值（0-100）
+      * relationship_connection：关系联结值（0-100）
+      * self_worth：自我价值值（0-100）
+      * meaning_direction：意义方向值（0-100）
+      * psychological_harmony_index：与 user_status 表保持一致，记录每次状态快照时的心理和谐指数。
+      * recorded_at：状态实际更新的时间点
+      * created_at：这条历史记录的入库时间
 
 8. 系统配置表（system_config）
-   - 存储全局开关、功能灰度、环境参数等键值对配置
-   - 字段：
-     * id：配置项编号，自动增加，主键
-     * config_key：配置键名（唯一），例如 admin_login_enabled
-     * config_value：配置值（文本类型，支持布尔、字符串、数字等）
-     * description：配置项说明文字
-     * created_at：创建时间
-     * updated_at：最后更新时间
-   - 初始化数据：插入一条记录，config_key='admin_login_enabled'，config_value='true'，控制管理员登录功能开关
+    - 存储全局开关、功能灰度、环境参数等键值对配置
+    - 字段：
+      * id：配置项编号，自动增加，主键
+      * config_key：配置键名（唯一），例如 admin_login_enabled
+      * config_value：配置值（文本类型，支持布尔、字符串、数字等）
+      * description：配置项说明文字
+      * created_at：创建时间
+      * updated_at：最后更新时间
+    - 初始化数据：插入一条记录，config_key='admin_login_enabled'，config_value='true'，控制管理员登录功能开关
 
 9. 管理员操作日志表（admin_logs）
-   - 记录管理员所有敏感操作的审计日志，满足安全追溯需求
-   - 字段：
-     * id：日志编号，自动增加，主键
-     * admin_phone：执行操作的管理员手机号（冗余存储，便于快速检索）
-     * action_type：操作类型（如 LOGIN、UPDATE_USER、DELETE_USER、DELETE_COMMENT、BATCH_INVITE、TOGGLE_CONFIG 等）
-     * target_table：操作影响的数据表名（若涉及数据修改）
-     * target_id：操作影响的记录主键ID（若涉及单条记录）
-     * before_snapshot：操作前数据快照（JSON格式，记录被修改前的关键字段）
-     * after_snapshot：操作后数据快照（JSON格式，记录修改后的内容）
-     * request_ip：操作请求的来源IP地址
-     * user_agent：操作请求的浏览器/客户端标识
-     * remark：备注信息（如批量生成邀请码的数量、配置变更原因等）
-     * created_at：日志记录时间
-   - 索引：在 admin_phone、action_type、created_at 以及 (target_table, target_id) 上建立普通索引，优化日志查询性能
+    - 记录管理员所有敏感操作的审计日志，满足安全追溯需求
+    - 字段：
+      * id：日志编号，自动增加，主键
+      * admin_phone：执行操作的管理员手机号（冗余存储，便于快速检索）
+      * action_type：操作类型（如 LOGIN、UPDATE_USER、DELETE_USER、DELETE_COMMENT、BATCH_INVITE、TOGGLE_CONFIG 等）
+      * target_table：操作影响的数据表名（若涉及数据修改）
+      * target_id：操作影响的记录主键ID（若涉及单条记录）
+      * before_snapshot：操作前数据快照（JSON格式，记录被修改前的关键字段）
+      * after_snapshot：操作后数据快照（JSON格式，记录修改后的内容）
+      * request_ip：操作请求的来源IP地址
+      * user_agent：操作请求的浏览器/客户端标识
+      * remark：备注信息（如批量生成邀请码的数量、配置变更原因等）
+      * created_at：日志记录时间
+    - 索引：在 admin_phone、action_type、created_at 以及 (target_table, target_id) 上建立普通索引，优化日志查询性能
+
+10. 记忆快照表（memory_snapshots）
+    - 字段：
+      * id：主键，自增 BIGINT
+      * user_id：用户编号（级联删除）
+      * summary：一天对话的总结摘要（TEXT）
+      * created_at：快照生成时间
+    - 索引：(user_id, created_at)
+
+11. 记忆锚点表（memory_anchors）
+    - 字段：
+      * id：主键，自增 BIGINT
+      * user_id：用户编号（级联删除）
+      * anchor_type：锚点类型（如 habit、preference、relationship 等，最长32字符）
+      * content：锚点内容（TEXT）
+      * confidence：AI 对该信息的确定程度（DECIMAL(3,2)，0.00-1.00，默认0.00）
+      * last_mentioned_at：最后提及时间（可为空）
+      * created_at：创建时间
+      * updated_at：更新时间
+    - 索引：(user_id, anchor_type) 和 (user_id, last_mentioned_at)
+    - 约束：confidence 范围检查
+
+12. 用户日程表（user_schedule）
+    - 字段：
+      * id：主键，自增 BIGINT
+      * user_id：用户编号（级联删除）
+      * schedule_type：日程类型（如 short_task、long_goal、countdown、anniversary、birthday 等，最长32字符）
+      * title：日程标题（最长200字符）
+      * description：详细描述（TEXT，可为空）
+      * scheduled_time：计划/截止/纪念日时间（可为空）
+      * is_completed：是否已完成（TINYINT(1)，默认0）
+      * created_at：创建时间
+      * updated_at：更新时间
+    - 索引：(user_id, scheduled_time) 和 (user_id, is_completed)
 
 - 外键关联：用户状态、事件、对话历史都关联到用户表，删除用户时这些数据也会自动删除（级联删除）。
 - 邀请码表独立，不关联用户。
@@ -1192,6 +1226,41 @@ Vitalis/
 - 我自己发现的问题：
   - 总是莫名其妙完全一样的事件记两遍，每天把工作ai的输出print出来，看看到底怎么事。
   - 前端聊天区正常上滚拿到的数据是没问题的，但发了消息就完全不一样了，尤其是新用户，游标分页和渲染感觉有大问题。
+  - 以及安全架构得升级，单纯的JWT然后记在前端内存对于我们这种用户对话记录极为私密的网页还是不太够。不过可以放到最后改https时一起做安全方面的升级。
+
+4.27
+- 开始使用git并将代码备份，且在GitHub创建仓库进行备份。
+  - 该说不说写了这么久代码才开始用git也是很抽象了。
+
+- 综合反思了一下关于Vitalis ai的一些想法：
+  - 对于一个陪伴型ai，长期记忆是非常重要的，而我的架构中，关于这一部分基本是空白的。
+  - 虽然做了对话存储、事件记录，但这些只服务于短期记忆和基本对话功能，并且实现其实还很不理想。
+  - 对话问题固然繁多，但如果只是一味的调提示词，是解决不了问题的。
+    必须立刻重构整个记忆系统：
+    - 新增 memory_snapshots（摘要+情绪标签）和 memory_anchors（用户画像、生日、习惯等长期锚点）。
+    - 在项目每次重启和每天凌晨四点对当天有对话的用户生成 1 条摘要，存入 memory_snapshots。
+      - 就像小元自己记日记，让我想到了电影《今夜即便这份爱恋从世界消散》的日野真织。
+      - 这也意味着user表得加一个今日有无对话的bool字段。
+        - user表还想加一个正在登录和当前token字段来着，这样可以做换设备原本的会被挤下线。
+          还是说应该做登录设备ip记录，可在个人主页查看管理。
+    - 提示词内容框架重构：
+      - 将检索到的长期记忆拼入 system prompt 的末尾，同时写清楚规则：只能自然呼应、严禁生硬复述、吃不准就闭嘴、更不准不确定情绪就乱记录。
+    - event表也要改，我看它不爽好久了。虽然这可能会是极大的改变量。
+      - 改为情绪转折表，字段有情绪变化及触发情绪转折的关键词。
+    - 再加一个日程表：
+      - 内容仍旧由ai根据对话记录。
+      - 字段有日程类型：短期任务、长期目标、倒数日、纪念日。
+      - 生日要不要干脆记在这儿呢，长期锚点改为用户画像？
+      - 前端也要据此做大改，把显示日程的部分加进去，目前的前端还是太素、内容太少了。
+  - 最后，改完结构后，一次询问的速度可能又会多个十几秒，到达一个不能接受的地步了，得把目前的双ai串行变成并行，不过同时就得解决俩ai数据一致性的问题了。
+
+- 废除 event 重大事件表，将其重构为 emotion_shifts 情绪转折表，以更精准地捕捉用户情绪的波动与触发因素。
+- 新增 memory_snapshots 记忆快照表，用于存储每日对话的总结摘要，为 AI 提供中长期对话记忆能力。
+- 新增 memory_anchors 记忆锚点表，作为用户画像的长期记忆库，记录习惯、偏好、人际关系等信息，并包含置信度与最后提及时间，引导 AI 自然呼应而非生硬复述。
+- 新增 user_schedule 用户日程表，支持短期任务、长期目标、倒数日、纪念日、生日等多种日程类型，为后续前端提醒与 AI 主动关怀提供数据基础。
+- 以上四张新表均通过外键关联 users 表，支持级联删除。
+- 同步更新 initialization.sql（完整版）、提供 migration_v2.sql 增量迁移脚本（自动删除旧 event 表并创建新表）。
+- 同步更新 models.py，移除 Event 模型，新增 EmotionShift、MemorySnapshot、MemoryAnchor、UserSchedule 四个 ORM 模型，原有其他模型字段、默认值、约束毫发无损。
 
 
 ----------==========问题与解决==========----------
