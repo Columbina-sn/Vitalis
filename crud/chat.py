@@ -6,55 +6,191 @@ from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import User, UserStatus, EmotionShift, ConversationHistory, RoleEnum, UserStatusHistory
+from models import (
+    User, UserStatus, EmotionShift, ConversationHistory, RoleEnum,
+    UserStatusHistory, MemoryAnchor, MemorySnapshot, UserSchedule
+)
 from utills.psychological_harmony_index import calculate_phi
 
 
 async def get_user_full_info(
-    db: AsyncSession, user_id: int
+        db: AsyncSession, user_id: int
 ) -> Optional[Dict[str, Any]]:
     """
-    获取用户的完整信息：状态、近7天内的情绪转折、最近10条对话记录
-    Args:
-        db: 数据库会话
-        user_id: 用户 ID
-    Returns:
-        包含 status, events (情绪转折列表), recent_conversations 的字典；如果用户不存在则返回 None
+    获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
+    长期记忆（近21天锚点按置信度取前8、近2天摘要1条、未来7天日程不限条数）。
     """
-    # 1. 检查用户是否存在
     user = await db.get(User, user_id)
     if not user:
         return None
 
-    # 2. 获取用户状态（user_status 表，一对一）
+    # 状态
     status_result = await db.execute(
         select(UserStatus).where(UserStatus.user_id == user_id)
     )
     status = status_result.scalar_one_or_none()
 
-    # 3. 获取近7天内的情绪转折（按创建时间倒序）
+    # 近7天情绪转折（按创建时间倒序，最多取5条）
     seven_days_ago = datetime.now() - timedelta(days=7)
     events_result = await db.execute(
         select(EmotionShift)
         .where(EmotionShift.user_id == user_id, EmotionShift.created_at >= seven_days_ago)
         .order_by(desc(EmotionShift.created_at))
+        .limit(5)
     )
     emotion_shifts = events_result.scalars().all()
 
-    # 4. 获取最近10条对话记录（包含 user 和 assistant，按创建时间倒序）
+    # 最近4条对话
     messages_result = await db.execute(
         select(ConversationHistory)
         .where(ConversationHistory.user_id == user_id)
         .order_by(desc(ConversationHistory.created_at))
-        .limit(10)
+        .limit(4)
     )
     recent_conversations = messages_result.scalars().all()
 
+    # 长期记忆：近21天内更新的锚点，按置信度降序取前8
+    three_weeks_ago = datetime.now() - timedelta(days=21)
+    anchors_result = await db.execute(
+        select(MemoryAnchor)
+        .where(
+            MemoryAnchor.user_id == user_id,
+            MemoryAnchor.updated_at >= three_weeks_ago
+        )
+        .order_by(desc(MemoryAnchor.confidence))
+        .limit(8)
+    )
+    anchors = anchors_result.scalars().all()
+
+    # 近2天的记忆快照，最多1条
+    two_days_ago = datetime.now() - timedelta(days=2)
+    snapshots_result = await db.execute(
+        select(MemorySnapshot)
+        .where(MemorySnapshot.user_id == user_id, MemorySnapshot.created_at >= two_days_ago)
+        .order_by(desc(MemorySnapshot.created_at))
+        .limit(1)
+    )
+    snapshots = snapshots_result.scalars().all()
+
+    # 未来7天内未完成的日程（不限条数）
+    now = datetime.now()
+    future_deadline = now + timedelta(days=7)
+    schedules_result = await db.execute(
+        select(UserSchedule)
+        .where(
+            UserSchedule.user_id == user_id,
+            UserSchedule.is_completed == False,
+            UserSchedule.scheduled_time >= now,
+            UserSchedule.scheduled_time <= future_deadline
+        )
+        .order_by(UserSchedule.scheduled_time.asc())
+    )
+    upcoming_schedules = schedules_result.scalars().all()
+
     return {
         "status": status,
-        "events": emotion_shifts,          # 实际为 EmotionShift 对象列表，但保持 key 名兼容
+        "events": emotion_shifts,
         "recent_conversations": recent_conversations,
+        "anchors": anchors,
+        "snapshots": snapshots,
+        "upcoming_schedules": upcoming_schedules,
     }
+
+
+async def add_or_update_memory_anchor(
+        db: AsyncSession,
+        user_id: int,
+        anchor_type: str,
+        content: str,
+        confidence: float = 0.5
+) -> MemoryAnchor:
+    """
+    添加或更新用户画像锚点。若存在同类型且内容相似（完全相同）的锚点，
+    则更新其内容、置信度和最后提及时间；否则创建新锚点。
+    """
+    # 查找是否存在同类型且内容完全相同的锚点
+    result = await db.execute(
+        select(MemoryAnchor).where(
+            MemoryAnchor.user_id == user_id,
+            MemoryAnchor.anchor_type == anchor_type,
+            MemoryAnchor.content == content
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        existing.confidence = confidence
+        existing.last_mentioned_at = datetime.now()
+        existing.updated_at = datetime.now()
+        return existing
+    else:
+        anchor = MemoryAnchor(
+            user_id=user_id,
+            anchor_type=anchor_type,
+            content=content,
+            confidence=confidence,
+            last_mentioned_at=datetime.now()
+        )
+        db.add(anchor)
+        await db.flush()
+        return anchor
+
+
+async def create_schedule(
+        db: AsyncSession,
+        user_id: int,
+        schedule_type: str,
+        title: str,
+        description: Optional[str] = None,
+        scheduled_time: Optional[datetime] = None,
+        is_completed: bool = False
+) -> UserSchedule:
+    """创建日程"""
+    schedule = UserSchedule(
+        user_id=user_id,
+        schedule_type=schedule_type,
+        title=title,
+        description=description,
+        scheduled_time=scheduled_time,
+        is_completed=is_completed
+    )
+    db.add(schedule)
+    await db.flush()
+    return schedule
+
+
+async def check_recent_similar_schedule(
+        db: AsyncSession,
+        user_id: int,
+        schedule_type: str,
+        title: str,
+        within_hours: int = 1
+) -> bool:
+    """检查最近一段时间内是否存在相同类型和标题的日程，防止重复创建"""
+    since_time = datetime.now() - timedelta(hours=within_hours)
+    result = await db.execute(
+        select(UserSchedule).where(
+            UserSchedule.user_id == user_id,
+            UserSchedule.schedule_type == schedule_type,
+            UserSchedule.title == title,
+            UserSchedule.created_at >= since_time
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def check_recent_duplicate_emotion_shift(
+        db: AsyncSession, user_id: int, detail: str, within_hours: int = 1
+) -> bool:
+    """检查最近一段时间内是否存在内容相同的情绪转折记录"""
+    since_time = datetime.now() - timedelta(hours=within_hours)
+    result = await db.execute(
+        select(EmotionShift).where(
+            EmotionShift.user_id == user_id,
+            EmotionShift.emotion_change_detail == detail,
+            EmotionShift.created_at >= since_time
+        )
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def update_user_status(
@@ -110,10 +246,10 @@ async def update_user_status(
 
 
 async def add_emotion_shift(
-    db: AsyncSession,
-    user_id: int,
-    emotion_change_detail: str,
-    trigger_keywords: Optional[str] = None
+        db: AsyncSession,
+        user_id: int,
+        emotion_change_detail: str,
+        trigger_keywords: Optional[str] = None
 ) -> EmotionShift:
     """
     增加一条情绪转折记录
@@ -138,11 +274,11 @@ async def add_emotion_shift(
 
 
 async def add_conversation_history(
-    db: AsyncSession,
-    user_id: int,
-    role: RoleEnum,
-    content: str,
-    extra_metadata: Optional[dict] = None
+        db: AsyncSession,
+        user_id: int,
+        role: RoleEnum,
+        content: str,
+        extra_metadata: Optional[dict] = None
 ) -> ConversationHistory:
     """
     增加一条对话历史记录
@@ -198,9 +334,9 @@ async def get_conversations_cursor_paginated(
 
 
 async def get_conversations_by_date(
-    db: AsyncSession,
-    user_id: int,
-    target_date: date_type
+        db: AsyncSession,
+        user_id: int,
+        target_date: date_type
 ) -> list[ConversationHistory]:
     """
     获取指定用户在某一天的所有对话历史（按时间正序排列）

@@ -9,7 +9,8 @@ Vitalis/
 ├── ai/
 │   ├── deepseek_client.py          # 封装好的大模型调用
 │   ├── empathyAI.py                # 共情AI
-│   └── productivityAI.py           # 工作AI
+│   ├── productivityAI.py           # 工作AI
+│   └── summaryAI.py                # 总结AI
 ├── config/
 │   └── db_conf.py                  # 异步数据库引擎和会话工厂
 ├── core/
@@ -1158,7 +1159,6 @@ Vitalis/
   - 错误回复保持直接显示（不经过打字机），确保异常处理逻辑不受影响。
   - 新增的空消息气泡（message left）用于接收打字内容，其 timestamp 同步保存，保持时间分割线的连续性。
 
-4.26（深夜重构）
 - 针对 DeepSeek API 接入后暴露的三大核心问题进行彻底的结构性修复：角色混淆（把助手的话当成用户的话）、时间感知错误（不知道今天几号）、追问误判（productivityAI 在追问中复述 empathy 刚说的话）。
 
   根因分析：
@@ -1358,6 +1358,42 @@ Vitalis/
 - 经测试，没有大问题，就还有点异步竞态问题。
 - 甚至表现莫名变得还不错？
 - 今天先到这，明天开始大展手脚改ai。
+
+4.28
+- 新增长期记忆与总结系统，暂时完成提示词、CRUD、定时任务的全面集成。
+  新增文件：
+    - `ai/summaryAI.py`：实现 `build_summary_messages` 与 `generate_daily_summary`，调用 DeepSeek 生成用户一天的对话摘要。
+    - `tasks.py`：实现 `daily_summary_task` 与 `run_daily_task_loop`，借助 `lifespan` 在应用启动时开启异步循环，每天凌晨4点自动为当天有对话记录的用户生成 `memory_snapshots` 快照。
+  修改 `main.py`：
+    - 弃用已废弃的 `@app.on_event("startup")`，改用 `lifespan` 上下文管理器安全地创建并持有后台任务引用，解决 `asyncio.create_task` 可能被垃圾回收的隐患。
+  扩展 `crud/chat.py`：
+    - `get_user_full_info()` 新增查询：全量 `memory_anchors`、近3天 `memory_snapshots`、未来7天未完成 `user_schedule`。
+    - 新增 `add_or_update_memory_anchor(db, user_id, anchor_type, content, confidence)`：创建或更新用户画像锚点（内容相同时更新置信度与最后提及时间）。
+    - 新增 `create_schedule(...)`、`check_recent_similar_schedule(...)`：创建日程并防1小时内重复。
+    - 新增 `check_recent_duplicate_emotion_shift(...)`：检查1小时内是否已存在相同内容的情绪转折记录，用于在路由层杜绝重复事件。
+  重构 `ai/empathyAI.py`：
+    - `build_messages()` 拼入用户画像、近期摘要、未来日程，加入“记忆使用守则”（只能自然呼应、不确定就闭嘴等），强化 AI 长期记忆运用能力。
+  重构 `ai/productivityAI.py`：
+    - `build_messages()` 拼入用户画像与日程；新增任务说明：可更新用户画像（should_update_anchors, new_anchors）和创建日程（should_create_schedule, new_schedule）。
+    - **修复状态更新失效的关键 bug**：原提示词要求 JSON 的键容易输出中文，导致 `status_changes` 虽返回但无法被 `update_user_status` 识别（永远使用旧值）。现强制示例字段使用英文 `physical_vitality` 等，并在 `status_text` 中明确不要提供 PHI。
+    - 收紧 `follow_up_text` 规则：仅允许事实陈述，禁止建议式关心。
+  修改 `routers/chat.py`：
+    - 删除旧的重复 `@router.post("/conversation")` 定义（之前文件内存在两段，后者会覆盖前者）。
+    - 在主对话接口中串联：调用 `add_or_update_memory_anchor` 处理画像更新；调用 `check_recent_similar_schedule` 和 `create_schedule` 处理日程；调用 `check_recent_duplicate_emotion_shift` 阻止重复情绪转折。
+- 测试与优化：
+    - 验证长期记忆查询均正常执行（当前无数据时提示词显示“暂无”）。
+    - **修复工作 AI 状态更新失效**：通过强制英文字段名，成功看到 `UPDATE user_status` 执行，五维分数与 PHI 在数据库中正确变化。
+    - **实现情绪转折防重**：在路由层增加检查，杜绝同一事件在短时间内被重复记录。
+
+（提示词优化）
+- 针对AI理解五维状态、日程创建、改名识别和回复边界进行提示词重构，摒弃堆砌例子，改用结构化规则。
+  · 五维状态：明确 physical_vitality 代表身体健康/疲劳，emotional_tone 代表情绪/压力，并强制要求对强烈表达立刻大幅调整（可跨40点），不再缓慢平滑过渡。
+  · 日程创建：定义时间锚点词触发机制（五一、下周、明天等），去具体例子，让AI自行泛化。
+  · follow_up_text：硬限制 ≤20 字，不得包含问号/建议/关心，禁止 empathy 回复内容泄漏到 productivity。
+  · 改名意图：加入角色指代自检规则，从主语/宾语判断昵称归属，彻底解决AI误以为给自己改名的问题；empathyAI 同时加入人设禁令，不得解读用户新昵称。
+  · 画像更新：保持 new_anchors 必须为对象数组，并增加容错逻辑（字符串自动包装）。
+- 效果：token消耗大幅下降，状态调整响应速度提升，日程创建成功率提高，改名误判基本消除。
+- 定时任务在指定时间正常触发，成功为当天有对话的用户生成摘要并写入 `memory_snapshots`。
 
 
 ----------==========问题与解决==========----------

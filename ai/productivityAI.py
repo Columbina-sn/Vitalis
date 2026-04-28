@@ -9,113 +9,58 @@ def build_messages(
     empathy_reply: str,
     user_info: Dict[str, Any]
 ) -> List[Dict[str, str]]:
-    """
-    构建 productivityAI 的 messages 列表，包含系统指令、完整历史、
-    当前用户消息以及 empathy 刚刚生成的 assistant 回复。
-    这样模型将 empathy 回复视为自己刚说的话，不会混淆。
-    """
     status = user_info.get("status")
     events = user_info.get("events", [])
-    recent_convs = user_info.get("recent_conversations", [])  # 倒序
+    recent_convs = user_info.get("recent_conversations", [])
+    anchors = user_info.get("anchors", [])
+    schedules = user_info.get("upcoming_schedules", [])
 
-    # ---------- 时间注入 ----------
     now = datetime.now()
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
-    time_hint = f"现在的时间是 {now.strftime('%Y年%m月%d日 %H:%M')}，星期{weekday_map[now.weekday()]}。"
+    time_hint = f"现在是{now.strftime('%Y年%m月%d日 %H:%M')}，星期{weekday_map[now.weekday()]}。"
 
-    # ---------- 用户背景 ----------
-    status_text = ""
-    if status:
-        status_text = (
-            f"用户当前五维状态（直接设置最终值，不要加减）：\n"
-            f"- 身心活力: {status.physical_vitality}\n"
-            f"- 情绪基调: {status.emotional_tone}\n"
-            f"- 关系联结: {status.relationship_connection}\n"
-            f"- 自我价值: {status.self_worth}\n"
-            f"- 意义方向: {status.meaning_direction}\n"
-            f"- 心理和谐指数: {status.psychological_harmony_index}\n"
-        )
-
-    events_text = ""
-    if events:
-        events_text = "用户近期的情绪转折记录（按时间从近到远）：\n"
-        for ev in events:
-            detail = ev.emotion_change_detail
-            if ev.trigger_keywords:
-                detail += f"（触发关键词：{ev.trigger_keywords}）"
-            events_text += f"- [{ev.created_at.strftime('%m/%d')}] {detail}\n"
-    else:
-        events_text = "暂无近期的情绪转折。\n"
+    # 紧凑数据拼接（保留原风格）
+    status_text = f"状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}]" if status else ""
+    events_text = "情绪: " + " | ".join(f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in events) if events else "无情绪记录"
+    anchors_text = "画像: " + ", ".join(f"{a.anchor_type}:{a.content}({a.confidence:.1f})" for a in anchors) if anchors else "无画像"
+    schedules_text = "日程: " + ", ".join(f"{sc.schedule_type}:{sc.title}({sc.scheduled_time.strftime('%m/%d') if sc.scheduled_time else '无期'})" for sc in schedules) if schedules else "无日程"
 
     system_prompt = f"""{time_hint}
+【角色】你是小元的后台分析器，只输出结构化数据，不参与对话。
 
-你是小元的"幕后助手"，负责分析对话并处理后台任务。你本人不直接面对用户，但你的输出会影响小元接下来对用户说的话。
-
-【用户背景】
+【五维定义（避免歧义）】
 {status_text}
-{events_text}
+- physical_vitality：身体健康/精力/疲劳感 （高=状态好，低=生病/疲惫）
+- emotional_tone：情绪基调/心理压力 （高=积极/快乐，低=悲伤/焦虑/愤怒）
+- relationship_connection：社会联结/被支持感（高=关系好，低=孤独/疏离）
+- self_worth：自我价值感/成就感 （高=自信，低=自我否定）
+- meaning_direction：目标意义感/未来期待 （高=清晰/期待，低=迷茫）
+调整原则：当用户直接表达身体或情绪的强烈变化（如“发烧”“崩溃”“狂喜”）时，立即将对应维度拉到与表达一致的数值（范围 0-100，可跨越 40+），不要平滑过渡。日常杂谈微调 1-3 点。
 
-【任务说明】
+【任务与输出规范】
+1. status_changes：必须用英文key给出5个维度的最终值（0-100整数）。
+2. 情绪转折：若本轮对话中有明确的值得记录的情绪起伏，用 ≤50 字概括为 event_summary，设 should_add_event=true。
+3. 改名意图：从本轮对话提取用户给用户自己换的新昵称，填到 update_nickname；若用户只是在给你起外号、描述你或称呼你（语句主语/宾语是“你/小元/小鸽子”等），则 update_nickname 一律为 null。
+4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字，或维度变化≥8时的一句客观事实陈述（≤20字，可以包含反问、建议、关心）。对于你没有办法确认的信息，可适当询问。
+5. 用户画像：若用户表达的是稳定的个人特质、价值观或长期习惯，可创建/更新 anchors。new_anchors 必须是对象数组，每项含 anchor_type, content, confidence(0-1)。
+6. 日程创建：识别对话中任何表示未来时间节点的表达（如“五一”、“下周”、“月底”、“明天”、“放假”、“到时候”等），立即创建日程。按语义确定 schedule_type（short_task/long_goal/countdown/anniversary 等），scheduled_time 设为该时段的起点（若未指定具体时间，用 00:00:00）。标题和描述应概括计划内容。若已有相同内容则跳过。
+7. 防重复：与最近1小时记录重复则不创建。
 
-1. **状态更新**：根据用户的表达和情绪变化，给出五维指标的最终值（0-100的整数）。
-   - 所有五个维度都必须出现。单次变化一般不超过10，除非有明确重大情绪事件。
-   - PHI 由系统自动计算，不需要你提供。
-   - 用户只是闲聊时，数值可不调整或微调1-2点。
-   - 如果用户隔了几天才来，可以根据时间跨度和事件适当调整。
+输出纯 JSON，格式：
+{{{{"status_changes":{{"physical_vitality": ..., "emotional_tone": ..., "relationship_connection": ..., "self_worth": ..., "meaning_direction": ...}},"should_add_event": false,"event_summary": "","update_nickname": null,"follow_up_text": "","should_update_anchors": false,"new_anchors": [],"should_create_schedule": false,"new_schedule": null}}}}"""
 
-2. **情绪转折记录**：判断用户是否提到了一段值得记住的情绪变化。
-   - 事件概述（`event_summary`）：简洁描述情绪转折及原因，别超过80字，像写便签，不像写报告。
-   - 注意：这里只是记录情绪转折，不要生成用户感受评价。
-
-3. **改名意图**：
-   - **用户是在给自己改昵称，不是在给小元改名字！**
-   - 如果用户有改名意图，update_nickname 设为提取的名字，follow_up_text 中自然确认。
-   - 没有改名意图则为 null。
-
-4. **追加追问（follow_up_text）**：
-   - 这段文字会拼在小元共情回复的后面，所以我只允许以下三种情况才生成，否则必须留空：
-     a. 确认改名成功（如“已经记住你的新名字「xxx」啦～”）。
-     b. 确认情绪转折已记录（如“我已经把这事记下来了。”）。
-     c. 状态出现明显变化（任一维度变化≥8）时，简短提醒一句（如“感觉你状态有点波动，记得照顾好自己。”），但禁止展开关心或追问细节。
-   - 禁止任何其他形式的问候、关心、闲聊追问。那些事由共情助手自己完成，你不要插手。
-   - 风格必须与 empathy_reply 自然衔接，不能突兀。
-
-输出 JSON 格式：
-{{
-  "status_changes": {{
-    "physical_vitality": 最终值,
-    "emotional_tone": 最终值,
-    "relationship_connection": 最终值,
-    "self_worth": 最终值,
-    "meaning_direction": 最终值
-  }},
-  "should_add_event": true或false,
-  "event_summary": "情绪转折描述",
-  "update_nickname": "新昵称"或null,
-  "follow_up_text": "你的追加追问"
-}}
-
-注意：仅输出 JSON。"""
+    # 注：上面的四个花括号是为了在 f-string 中正确输出 JSON 花括号，实际 prompt 中会变成单个花括号
 
     messages = [{"role": "system", "content": system_prompt}]
-
-    # ---------- 历史对话（正序） ----------
     for msg in reversed(recent_convs):
         role = "user" if msg.role.value == "user" else "assistant"
         messages.append({"role": role, "content": msg.content})
-
-    # ---------- 当前用户消息 ----------
     messages.append({"role": "user", "content": user_message})
-
-    # ---------- empathy 刚刚生成的回复（作为 assistant 消息） ----------
-    # 这样幕后助手就清楚小元已经说了什么，绝不会当成用户的话
     messages.append({"role": "assistant", "content": empathy_reply})
-
     return messages
 
 
 async def analog_ai(messages: List[Dict[str, str]]) -> dict:
-    """调用 DeepSeek 获取结构化建议（新版 messages 接口）"""
     try:
         result = await deepseek_chat_messages(messages)
         return {
@@ -123,7 +68,11 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "should_add_event": result.get("should_add_event", False),
             "event_summary": result.get("event_summary", ""),
             "update_nickname": result.get("update_nickname"),
-            "follow_up_text": result.get("follow_up_text", "")
+            "follow_up_text": result.get("follow_up_text", ""),
+            "should_update_anchors": result.get("should_update_anchors", False),
+            "new_anchors": result.get("new_anchors", []),
+            "should_create_schedule": result.get("should_create_schedule", False),
+            "new_schedule": result.get("new_schedule", {}),
         }
     except Exception as e:
         print(f"[productivityAI] DeepSeek 调用失败: {e}")
@@ -132,5 +81,9 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "should_add_event": False,
             "event_summary": "",
             "update_nickname": None,
-            "follow_up_text": ""
+            "follow_up_text": "",
+            "should_update_anchors": False,
+            "new_anchors": [],
+            "should_create_schedule": False,
+            "new_schedule": {},
         }
