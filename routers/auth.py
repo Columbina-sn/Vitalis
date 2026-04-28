@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
@@ -18,6 +19,7 @@ from utills.email_utils import send_admin_login_alert
 from utills.ip_utils import get_client_ip
 from utills.response import success_response
 from utills.security import verify_password, create_access_token
+from models import AdminLog
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -92,7 +94,7 @@ async def login(
     """
     登录流程：
     - 普通用户：验证手机号+密码，直接返回 token
-    - 管理员手机号：验证一级密码后，发送邮件并返回 require_second_factor: true
+    - 管理员手机号：验证一级密码后，发送邮件并返回 require_second_factor: true（若IP与上次相同则跳过邮件）
     """
     phone = user_data.phone
     password = user_data.password
@@ -113,13 +115,10 @@ async def login(
                 detail="手机号或密码错误"
             )
 
-        # 获取客户端IP并发送邮件
+        # 获取客户端IP
         client_ip = get_client_ip(request)
-        # 经测试发件功能正常 为了在测试过程中不总是重复发邮件 故注释
-        # login_time = datetime.now()
-        # send_admin_login_alert(client_ip, login_time)  # 邮件发送失败不影响流程
 
-        # 写入一级验证尝试日志
+        # 写入一级验证成功日志
         await create_admin_log(
             db=db,
             admin_phone=phone,
@@ -136,6 +135,34 @@ async def login(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="今日管理员一级验证尝试次数已达上限，请24小时后再试"
             )
+
+        # ---------- 根据最近一次成功一级验证的 IP 决定是否发送邮件 ----------
+        # 查询最近两次一级验证成功的记录（按时间倒序），第一条是本次刚写入的，取第二条作为“上一次”
+        previous_ip_stmt = (
+            select(AdminLog.request_ip)
+            .where(AdminLog.admin_phone == phone,
+                   AdminLog.action_type == "ADMIN_LOGIN_STAGE1")
+            .order_by(desc(AdminLog.created_at))
+            .limit(2)
+        )
+        result = await db.execute(previous_ip_stmt)
+        ip_records = result.scalars().all()
+
+        should_send_mail = True
+        if len(ip_records) >= 2:
+            previous_ip = ip_records[1]  # 第二条为上一次成功登录的IP
+            if previous_ip == client_ip:
+                should_send_mail = False
+
+        try:
+            if should_send_mail:
+                login_time = datetime.now()
+                send_admin_login_alert(client_ip, login_time)
+            else:
+                print(f"[邮件] 与上次管理员登录 IP 相同，跳过发送")
+        except Exception as e:
+            # 邮件发送失败不应影响登录流程，仅记录日志
+            print(f"[邮件] 发送管理员登录提醒失败: {e}")
 
         # 记录待验证会话
         pending_admin_verifications[phone] = time.time() + PENDING_EXPIRE_SECONDS
@@ -217,7 +244,7 @@ async def admin_second_verify(
         remark="管理员二级验证成功，登录后台"
     )
 
-    # 生成管理员 token，有效期 1 小时，payload 中标记 is_admin
+    # 生成管理员 token，有效期 1 小时（改成了 24 小时方便测试）
     access_token = create_access_token(
         data={"sub": phone, "is_admin": True},
         expires_delta=timedelta(hours=24)
