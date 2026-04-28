@@ -9,10 +9,17 @@ from sqlalchemy import select
 
 from ai.summaryAI import generate_daily_summary
 from config.db_conf import AsyncSessionLocal
+from crud.admin import create_admin_log
 from models import ConversationHistory, MemorySnapshot, User
 
 
-async def daily_summary_task():
+async def daily_summary_task(
+    admin_phone="system",
+    action_type="DAILY_SUMMARY",
+    request_ip="127.0.0.1",
+    user_agent="CronJob",
+    remark_prefix="定时任务自动触发"
+):
     """
     定时任务：每天凌晨4点运行，为所有当天有对话记录的用户生成记忆快照。
     """
@@ -67,8 +74,16 @@ async def daily_summary_task():
             )
             db.add(snapshot)
 
+        # 记录管理员日志
+        await create_admin_log(
+            db=db,
+            admin_phone=admin_phone,
+            action_type=action_type,
+            request_ip=request_ip,
+            user_agent=user_agent,
+            remark=f"{remark_prefix}，生成记忆快照，涉及 {len(user_ids)} 位用户"
+        )
         await db.commit()
-        print(f"[定时任务] 每日摘要已生成，涉及 {len(user_ids)} 位用户。")
 
 
 TZ = timezone(timedelta(hours=8))

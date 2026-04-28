@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Query, Body, HTTPException, Path
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
@@ -18,6 +19,7 @@ from schemas.admin import AdminStatsResponse, BatchInviteCodeRequest, BatchInvit
     AdminLogCursor, AdminLogsResponse, UserInAdminList, AdminUserListResponse, CommentInAdminList, \
     AdminCommentListResponse, InviteCodeItem, AdminInviteCodeListResponse, AdminLogItemFull, AdminLogListResponse, \
     UpdateUserRequest, UpdateCommentRequest, UpdateInviteCodeRequest
+from tasks import daily_summary_task
 from utills.response import success_response
 from utills.ip_utils import get_client_ip
 
@@ -454,3 +456,47 @@ async def delete_admin_log(
         raise HTTPException(status_code=404, detail="日志记录不存在")
     await delete_admin_log_by_id(db, log_id)
     return success_response(message="日志已删除")
+
+
+@router.get("/daily-summary/status", summary="查询今日是否已触发每日摘要（自动或手动）")
+async def daily_summary_status(
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type.in_(['DAILY_SUMMARY', 'MANUAL_DAILY_SUMMARY']),
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    count = result.scalar() or 0
+    return success_response(message="查询成功", data={"alreadyTriggered": count > 0})
+
+
+@router.post("/daily-summary/trigger", summary="手动触发每日摘要生成")
+async def trigger_daily_summary(
+        request: Request,
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type.in_(['DAILY_SUMMARY', 'MANUAL_DAILY_SUMMARY']),
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    if (result.scalar() or 0) > 0:
+        raise HTTPException(status_code=409, detail="今天已经触发过每日摘要生成（自动或手动），不可重复执行")
+
+    await daily_summary_task(
+        admin_phone=current_admin["phone"],
+        action_type="MANUAL_DAILY_SUMMARY",
+        request_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        remark_prefix="管理员主动触发"
+    )
+    return success_response(message="每日摘要生成任务已启动")

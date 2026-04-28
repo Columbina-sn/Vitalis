@@ -19,11 +19,31 @@ def build_messages(
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
     time_hint = f"现在是{now.strftime('%Y年%m月%d日 %H:%M')}，星期{weekday_map[now.weekday()]}。"
 
-    # 紧凑数据拼接（保留原风格）
-    status_text = f"状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}]" if status else ""
-    events_text = "情绪: " + " | ".join(f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in events) if events else "无情绪记录"
-    anchors_text = "画像: " + ", ".join(f"{a.anchor_type}:{a.content}({a.confidence:.1f})" for a in anchors) if anchors else "无画像"
-    schedules_text = "日程: " + ", ".join(f"{sc.schedule_type}:{sc.title}({sc.scheduled_time.strftime('%m/%d') if sc.scheduled_time else '无期'})" for sc in schedules) if schedules else "无日程"
+    status_text = ""
+    if status:
+        status_text = f"当前状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}] (PHI自动计算)"
+
+    events_text = ""
+    if events:
+        events_text = "近期情绪转折: " + " | ".join(
+            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in events
+        )
+
+    anchors_text = ""
+    if anchors:
+        anchors_text = "现有画像: " + ", ".join(
+            f"{a.anchor_type}:{a.content}({a.confidence:.1f})" for a in anchors
+        )
+    else:
+        anchors_text = "暂无画像"
+
+    schedules_text = ""
+    if schedules:
+        schedules_text = "现有日程: " + ", ".join(
+            f"{sc.schedule_type}:{sc.title}({sc.scheduled_time.strftime('%m/%d') if sc.scheduled_time else '无期'})" for sc in schedules
+        )
+    else:
+        schedules_text = "暂无日程"
 
     system_prompt = f"""{time_hint}
 【角色】你是小元的后台分析器，只输出结构化数据，不参与对话。
@@ -40,16 +60,27 @@ def build_messages(
 【任务与输出规范】
 1. status_changes：必须用英文key给出5个维度的最终值（0-100整数）。
 2. 情绪转折：若本轮对话中有明确的值得记录的情绪起伏，用 ≤50 字概括为 event_summary，设 should_add_event=true。
-3. 改名意图：从本轮对话提取用户给用户自己换的新昵称，填到 update_nickname；若用户只是在给你起外号、描述你或称呼你（语句主语/宾语是“你/小元/小鸽子”等），则 update_nickname 一律为 null。
-4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字，或维度变化≥8时的一句客观事实陈述（≤20字，可以包含反问、建议、关心）。对于你没有办法确认的信息，可适当询问。
+3. 改名意图：从本轮对话提取用户**给自己**换的新昵称，填到 update_nickname；若用户只是在给你起外号、描述你或称呼你（语句主语/宾语是“你/小元/小鸽子”等），则 update_nickname 一律为 null。
+4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字（如 已记下新昵称：xxx。 已记录新日程：类型（时间）：内容 等），或维度变化≥8时的一句客观事实陈述（≤20字，**不得包含问号、建议、关心**）。不询问用户、不延展对话。
 5. 用户画像：若用户表达的是稳定的个人特质、价值观或长期习惯，可创建/更新 anchors。new_anchors 必须是对象数组，每项含 anchor_type, content, confidence(0-1)。
-6. 日程创建：识别对话中任何表示未来时间节点的表达（如“五一”、“下周”、“月底”、“明天”、“放假”、“到时候”等），立即创建日程。按语义确定 schedule_type（short_task/long_goal/countdown/anniversary/birthday 等），scheduled_time 设为该时段的起点（若未指定具体时间，用 00:00:00）。标题和描述应概括计划内容。若已有相同内容则跳过。
+6. 日程创建：识别对话中任何表示未来时间节点的表达，立即创建日程。**一次可创建多个日程**，字段为 new_schedules（数组）。每个日程含 schedule_type (short_task/long_goal/countdown/anniversary/birthday)、title、description、scheduled_time（格式 YYYY-MM-DDTHH:MM 或 null）。若同一意图已存在则跳过。
 7. 防重复：与最近1小时记录重复则不创建。
 
-输出纯 JSON，格式：
-{{{{"status_changes":{{"physical_vitality": ..., "emotional_tone": ..., "relationship_connection": ..., "self_worth": ..., "meaning_direction": ...}},"should_add_event": false,"event_summary": "","update_nickname": null,"follow_up_text": "","should_update_anchors": false,"new_anchors": [],"should_create_schedule": false,"new_schedule": null}}}}"""
-
-    # 注：上面的四个花括号是为了在 f-string 中正确输出 JSON 花括号，实际 prompt 中会变成单个花括号
+输出 JSON：
+{{
+  "status_changes": {{"physical_vitality": 60, "emotional_tone": 75, "relationship_connection": 80, "self_worth": 65, "meaning_direction": 85}},
+  "should_add_event": false,
+  "event_summary": "",
+  "update_nickname": null,
+  "follow_up_text": "",
+  "should_update_anchors": false,
+  "new_anchors": [],
+  "should_create_schedule": false,
+  "new_schedules": [
+    {{"schedule_type":"short_task","title":"示例日程","description":"示例描述","scheduled_time":"2026-05-01T00:00"}}
+  ]
+}}
+只输出 JSON。"""
 
     messages = [{"role": "system", "content": system_prompt}]
     for msg in reversed(recent_convs):
@@ -72,7 +103,7 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "should_update_anchors": result.get("should_update_anchors", False),
             "new_anchors": result.get("new_anchors", []),
             "should_create_schedule": result.get("should_create_schedule", False),
-            "new_schedule": result.get("new_schedule", {}),
+            "new_schedules": result.get("new_schedules", []),   # 改为数组
         }
     except Exception as e:
         print(f"[productivityAI] DeepSeek 调用失败: {e}")
@@ -85,5 +116,5 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
             "should_update_anchors": False,
             "new_anchors": [],
             "should_create_schedule": False,
-            "new_schedule": {},
+            "new_schedules": [],
         }

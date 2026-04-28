@@ -92,33 +92,36 @@ async def receive_user_message(
                 confidence=anchor_data.get("confidence", 0.5),
             )
 
-    # 7. 创建日程
-    if prod_result.get("should_create_schedule") and prod_result["new_schedule"]:
-        sched = prod_result["new_schedule"]
-        already_exists = await check_recent_similar_schedule(
-            db, current_user.id, sched.get("schedule_type", ""), sched.get("title", "")
-        )
-        if not already_exists:
-            scheduled_time = None
-            if sched.get("scheduled_time"):
-                try:
-                    scheduled_time = dt.fromisoformat(sched["scheduled_time"])
-                except:
-                    pass
-            await create_schedule(
-                db,
-                current_user.id,
-                schedule_type=sched.get("schedule_type", "short_task"),
-                title=sched.get("title", ""),
-                description=sched.get("description"),
-                scheduled_time=scheduled_time,
+    # 7. 创建日程（支持批量）
+    if prod_result.get("should_create_schedule") and prod_result.get("new_schedules"):
+        for sched in prod_result["new_schedules"]:
+            if not sched.get("title"):
+                continue
+            already_exists = await check_recent_similar_schedule(
+                db, current_user.id, sched.get("schedule_type", ""), sched.get("title", "")
             )
+            if not already_exists:
+                scheduled_time = None
+                raw_time = sched.get("scheduled_time")
+                if raw_time and isinstance(raw_time, str):
+                    try:
+                        scheduled_time = dt.fromisoformat(raw_time)
+                    except ValueError:
+                        print(f"[日程解析] 忽略非法时间格式: {raw_time}")
+                await create_schedule(
+                    db,
+                    current_user.id,
+                    schedule_type=sched.get("schedule_type", "short_task"),
+                    title=sched.get("title", ""),
+                    description=sched.get("description"),
+                    scheduled_time=scheduled_time,
+                )
 
     # 8. 构建最终回复
     final_reply = empathy_reply
     follow_up = prod_result.get("follow_up_text", "").strip()
     if follow_up and not follow_up.startswith(("你好", "小元")):
-        final_reply = final_reply.rstrip() + "\n\n\n" + follow_up
+        final_reply = final_reply.rstrip() + "\n\n" + follow_up
 
     update_nickname = prod_result.get("update_nickname")
     if update_nickname:

@@ -55,6 +55,7 @@
   const logStartDate = document.getElementById('logStartDate');
   const logEndDate = document.getElementById('logEndDate');
   const inviteResultList = document.getElementById('inviteResultList');
+  const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn')
 
   // 模态框
   const adminLogsModal = document.getElementById('adminLogsModal');
@@ -145,6 +146,7 @@
       window.location.href = '/HTML/Index/index.html';
       return;
     }
+    checkDailySummaryStatus()
     // 默认加载用户列表
     await switchTab('users');
     await fetchStats();
@@ -206,6 +208,25 @@
       if (e.target === adminLogsModal) closeAdminLogsModal();
     });
     bindAdminLogsScroll();
+
+    triggerDailySummaryBtn.addEventListener('click', async () => {
+        if (triggerDailySummaryBtn.disabled) return;
+        try {
+            await window.http({ method: 'POST', url: '/admin/daily-summary/trigger', needAuth: true });
+            window.showToast('每日摘要生成已启动');
+            triggerDailySummaryBtn.disabled = true;
+            triggerDailySummaryBtn.style.opacity = '0.6';
+            dailySummaryStatusText.textContent = '📅 今日已执行';
+        } catch (err) {
+            if (err.message.includes('已经手动触发过')) {
+                triggerDailySummaryBtn.disabled = true;
+                triggerDailySummaryBtn.style.opacity = '0.6';
+                dailySummaryStatusText.textContent = '📅 今日已执行';
+            } else {
+                window.showToast('触发失败：' + err.message);
+            }
+        }
+    });
 
     // 日期联动
     logStartDate.addEventListener('change', function () {
@@ -839,6 +860,24 @@
   }
 
   // ==================== 11. 通用辅助 ====================
+  // 初始化时查询记忆快照执行状态
+  async function checkDailySummaryStatus() {
+      try {
+          const data = await window.http({ method: 'GET', url: '/admin/daily-summary/status', needAuth: true });
+          if (data.alreadyTriggered) {
+              triggerDailySummaryBtn.disabled = true;
+              triggerDailySummaryBtn.style.opacity = '0.6';
+              dailySummaryStatusText.textContent = '📅 今日已执行';
+          } else {
+              triggerDailySummaryBtn.disabled = false;
+              triggerDailySummaryBtn.style.opacity = '1';
+              dailySummaryStatusText.textContent = '';
+          }
+      } catch (e) {
+          // 读取失败不影响，按钮保持可用
+      }
+  }
+
   function showConfirm(msg, onYes) {
     confirmMessage.textContent = msg;
     customConfirm.style.display = 'flex';
