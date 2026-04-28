@@ -69,20 +69,25 @@
 /* ============================================================
    3. 主界面整体布局
    ============================================================ */
+body {
+  min-height: 100vh;
+  max-height: 200vh;           /* 确保有两屏高度 */
+  overflow-y: auto;
+}
 .main-interface {
-  position: absolute; /* 绝对定位，相对于最近的定位祖先 */
-  top: 2.5%; /* 距离顶部2.5% */
-  left: 4%; /* 距离左侧4% */
-  width: 92%; /* 宽度92% */
-  height: 95%; /* 高度95% */
-  background: rgba(254, 252, 230, 0.4); /* 半透明白色背景 */
-  backdrop-filter: blur(4px); /* 背景模糊 */
-  border-radius: 48px; /* 圆角48px */
-  display: flex; /* 弹性布局 */
-  flex-direction: column; /* 子元素纵向排列 */
-  overflow: hidden; /* 超出部分隐藏 */
-  box-shadow: 0 20px 35px rgba(80, 60, 30, 0.1); /* 外阴影 */
-  border: 1px solid rgba(255, 230, 140, 0.6); /* 淡黄色边框 */
+  position: relative;           /* 不使用绝对定位，放在文档流中 */
+  height: 95vh;                 /* 固定高度占视口95%，与原来一致 */
+  width: 92%;
+  max-width: 1200px;
+  margin: 2% auto 0 auto;    /* 水平居中，上方留空隙 */
+  background: rgba(254, 252, 230, 0.4);
+  backdrop-filter: blur(4px);
+  border-radius: 48px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;             /* 内部滚动由子元素处理 */
+  box-shadow: 0 20px 35px rgba(80, 60, 30, 0.1);
+  border: 1px solid rgba(255, 230, 140, 0.6);
 }
 
 /* 头部 */
@@ -214,6 +219,15 @@
   }
   .date-jump-inline-btn span {
     display: none;
+  }
+}
+@media (max-width: 768px) {
+  .schedule-full-inner {
+    flex-direction: column;
+    height: auto;
+  }
+  .schedule-half {
+    min-height: 50vh;
   }
 }
 
@@ -616,22 +630,242 @@
   box-shadow: none; /* 移除阴影 */
 }
 
-/* 滚动条样式 */
+/* ============================================================ */
+/* 统一滚动条样式（适用于所有可能出现滚动条的容器） */
+/* ============================================================ */
 .messages::-webkit-scrollbar,
-.status-board::-webkit-scrollbar {
-  width: 5px; /* 滚动条宽度5px */
+.status-board::-webkit-scrollbar,
+.schedule-scroll::-webkit-scrollbar,
+.date-history-messages::-webkit-scrollbar,
+.input-area textarea::-webkit-scrollbar {
+  width: 5px;
 }
 
+/* 单独加粗 body 滚动条宽度 */
+body::-webkit-scrollbar {
+  width: 10px;
+}
+
+body::-webkit-scrollbar-track,
 .messages::-webkit-scrollbar-track,
-.status-board::-webkit-scrollbar-track {
-  background: #f5ecd8; /* 滚动条轨道背景色 */
-  border-radius: 10px; /* 圆角10px */
+.status-board::-webkit-scrollbar-track,
+.schedule-scroll::-webkit-scrollbar-track,
+.date-history-messages::-webkit-scrollbar-track,
+.input-area textarea::-webkit-scrollbar-track {
+  background: #f5ecd8;
+  border-radius: 10px;
 }
 
+body::-webkit-scrollbar-thumb,
 .messages::-webkit-scrollbar-thumb,
-.status-board::-webkit-scrollbar-thumb {
-  background: #ddc8a4; /* 滚动条滑块颜色 */
-  border-radius: 10px; /* 圆角10px */
+.status-board::-webkit-scrollbar-thumb,
+.schedule-scroll::-webkit-scrollbar-thumb,
+.date-history-messages::-webkit-scrollbar-thumb,
+.input-area textarea::-webkit-scrollbar-thumb {
+  background: #ddc8a4;
+  border-radius: 10px;
+}
+
+/* ============================================================ */
+/* 日程全览界面（第二屏） */
+/* ============================================================ */
+.schedule-full-view {
+  width: 92%;
+  max-width: 1200px;
+  margin: 40px auto;
+  background: rgba(254, 252, 230, 0.8);
+  backdrop-filter: blur(6px);
+  border-radius: 48px;
+  box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+  border: 1px solid #f3e0bc;
+  overflow: hidden;
+}
+
+.schedule-full-inner {
+  display: flex;
+  height: 85vh;                /* 占据一屏左右高度 */
+}
+
+.schedule-half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+}
+
+/* 未完成侧背景：浅蓝渐变（参考 colorPalette 的 #C2DFE8） */
+.schedule-uncompleted {
+  background: linear-gradient(180deg, #eaf6f9 0%, #d4ecf2 100%);
+  border-right: 1px dashed #aaccdd;
+}
+
+/* 已完成侧背景：柠檬黄渐变（参考 #FFF3E0） */
+.schedule-completed {
+  background: linear-gradient(180deg, #fffde8 0%, #fdf3d0 100%);
+}
+
+.schedule-half-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #7a5a3a;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+/* 单条日程卡片 */
+.schedule-item {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border-left: 5px solid #ccc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.2s;
+}
+.schedule-item:hover {
+  transform: scale(1.02);
+}
+
+/* 类型专属颜色（柔和，带蜡笔感） */
+.schedule-type-short_task   { border-left-color: #81c784; }  /* 嫩绿 */
+.schedule-type-long_goal    { border-left-color: #64b5f6; }  /* 淡蓝 */
+.schedule-type-countdown    { border-left-color: #ffb74d; }  /* 暖橙 */
+.schedule-type-anniversary  { border-left-color: #f06292; }  /* 粉红 */
+.schedule-type-birthday     { border-left-color: #ba68c8; }  /* 淡紫 */
+
+/* 已完成卡片降低透明度 */
+.schedule-completed .schedule-item {
+  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.schedule-item-icon {
+  font-size: 1.5rem;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.schedule-item-content {
+  flex: 1;
+}
+
+.schedule-item-title {
+  font-weight: 600;
+  color: #5f4a38;
+  font-size: 1rem;
+}
+
+.schedule-item-time {
+  font-size: 0.8rem;
+  color: #9b8870;
+  margin-top: 2px;
+}
+
+.schedule-item-desc {
+  font-size: 0.75rem;
+  color: #b0a088;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+/* 右侧状态区的最近日程卡片 */
+.schedule-recent-card {
+  margin-top: 12px;
+  background: rgba(255, 255, 245, 0.8);
+  border-radius: 28px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: transform 0.5s ease;
+}
+.schedule-recent-card:hover {
+  transform: scale(1.03);
+}
+
+.schedule-recent-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+  color: #b87a48;
+  margin-bottom: 8px;
+}
+
+.schedule-recent-all {
+  font-size: 0.8rem;
+  color: #d9a26c;
+  text-decoration: none;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.schedule-recent-all:hover {
+  color: #b87a48;
+  text-decoration: underline;
+}
+
+.schedule-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 最近日程条目简化样式 */
+.recent-schedule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #6b4c2c;
+}
+.recent-schedule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 回到顶部按钮（水平居中） */
+.back-to-top-btn {
+  position: fixed;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: 100px;
+  height: 40px;
+  border-radius: 20px;
+  background: rgba(200, 170, 130, 0.85);
+  backdrop-filter: blur(4px);
+  color: #fff7e8;
+  border: 1px solid #e0c8a0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 1.2rem;
+  display: none;            /* 默认隐藏 */
+  cursor: pointer;
+  transition: opacity 0.3s, transform 0.3s;
+  align-items: center;
+  justify-content: center;
+}
+.back-to-top-btn.show {
+  display: flex;
+}
+.back-to-top-btn:hover {
+  background: rgba(180, 140, 100, 0.9);
+  transform: translateX(-50%) scale(1.1);  /* 保留居中同时缩放 */
 }
 
 /* ============================================================

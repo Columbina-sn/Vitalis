@@ -254,3 +254,47 @@ async def get_user_export_data_html(db: AsyncSession, user_id: int) -> dict:
         "schedules": schedules_data,
         "export_time": datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"),
     }
+
+
+async def get_user_schedules(db: AsyncSession, user_id: int) -> dict:
+    """
+    获取用户所有日程，按 is_completed 分两类：
+    - 未完成：先有 scheduled_time 的按时间升序，无时间的放最后。
+    - 已完成：按 updated_at 降序排列。
+    """
+    # 查询所有日程
+    result = await db.execute(
+        select(UserSchedule)
+        .where(UserSchedule.user_id == user_id)
+    )
+    schedules = result.scalars().all()
+
+    uncompleted = []
+    completed = []
+
+    for s in schedules:
+        item = {
+            "id": s.id,
+            "schedule_type": s.schedule_type,
+            "title": s.title,
+            "description": s.description,
+            "scheduled_time": s.scheduled_time.isoformat() if s.scheduled_time else None,
+            "is_completed": s.is_completed,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        }
+        if s.is_completed:
+            completed.append(item)
+        else:
+            uncompleted.append(item)
+
+    # 未完成排序：有时间的按时间升序，没时间的放最后（升序自然 NULL 最后）
+    uncompleted.sort(key=lambda x: (x["scheduled_time"] is None, x["scheduled_time"] or ""))
+
+    # 已完成排序：按 updated_at 降序
+    completed.sort(key=lambda x: x["updated_at"] or "", reverse=True)
+
+    return {
+        "uncompleted": uncompleted,
+        "completed": completed
+    }

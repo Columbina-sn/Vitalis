@@ -332,6 +332,7 @@
 
     // ======================== 全局状态 ========================
     let userStatus = { physical: 50, emotional: 50, relation: 50, worth: 50, meaning: 50, phi: 50 };
+    let allSchedules = { uncompleted: [], completed: [] };  // 全量日程
     let isDashboardReady = false;
     let isSending = false;
 
@@ -361,6 +362,109 @@
             `;
             statsContainer.appendChild(item);
         }
+    }
+
+    // ======================== 日程渲染 ========================
+    const scheduleTypeIconMap = {
+    short_task: 'fa-tasks',
+    long_goal: 'fa-flag',
+    countdown: 'fa-hourglass-half',
+    anniversary: 'fa-heart',
+    birthday: 'fa-cake-candles'
+    };
+
+    const scheduleTypeColorClass = (type) => `schedule-type-${type}`;
+
+    function renderRecentSchedules() {
+    const container = document.getElementById('recentScheduleList');
+    if (!container) return;
+
+    // 从所有日程中选取最近的两个：优先未完成中时间最近的，若无则取已完成的
+    const recent = [...allSchedules.uncompleted, ...allSchedules.completed].slice(0, 4);
+    
+    container.innerHTML = '';
+    if (recent.length === 0) {
+        container.innerHTML = '<div style="color:#b0a088; font-size:0.8rem;">暂无日程，和我说说你的计划吧～</div>';
+        return;
+    }
+
+    recent.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'recent-schedule-item';
+        const dotColorClass = scheduleTypeColorClass(s.schedule_type);
+        item.innerHTML = `
+        <span class="recent-schedule-dot ${dotColorClass}" style="background: currentColor; opacity:0.8;"></span>
+        <span style="flex:1">${window.escapeHtml(s.title)}</span>
+        <span style="font-size:0.7rem; color:#9b8870;">${s.scheduled_time ? window.formatDate(s.scheduled_time) : ''}</span>
+        `;
+        container.appendChild(item);
+    });
+    }
+
+    function renderFullSchedules() {
+    const uncompletedContainer = document.getElementById('uncompletedSchedules');
+    const completedContainer = document.getElementById('completedSchedules');
+    if (!uncompletedContainer || !completedContainer) return;
+
+    // 未完成列表
+    uncompletedContainer.innerHTML = '';
+    if (allSchedules.uncompleted.length === 0) {
+        uncompletedContainer.innerHTML = '<div style="color:#8a7a6a; padding:20px; text-align:center;">🍃 所有事情都已完成，真棒！</div>';
+    } else {
+        allSchedules.uncompleted.forEach(s => renderScheduleItem(s, uncompletedContainer));
+    }
+
+    // 已完成列表
+    completedContainer.innerHTML = '';
+    if (allSchedules.completed.length === 0) {
+        completedContainer.innerHTML = '<div style="color:#8a7a6a; padding:20px; text-align:center;">暂无已完成的日程</div>';
+    } else {
+        allSchedules.completed.forEach(s => renderScheduleItem(s, completedContainer));
+    }
+    }
+
+    function renderScheduleItem(schedule, container) {
+    const typeClass = scheduleTypeColorClass(schedule.schedule_type);
+    const iconClass = scheduleTypeIconMap[schedule.schedule_type] || 'fa-calendar';
+
+    const div = document.createElement('div');
+    div.className = `schedule-item ${typeClass}`;
+    div.innerHTML = `
+        <div class="schedule-item-icon"><i class="fas ${iconClass}"></i></div>
+        <div class="schedule-item-content">
+        <div class="schedule-item-title">${window.escapeHtml(schedule.title)}</div>
+        ${schedule.scheduled_time ? `<div class="schedule-item-time">📅 ${window.formatDate(schedule.scheduled_time)}</div>` : ''}
+        ${schedule.description ? `<div class="schedule-item-desc">${window.escapeHtml(schedule.description)}</div>` : ''}
+        </div>
+    `;
+    container.appendChild(div);
+    }
+
+    async function fetchAndRenderSchedules() {
+    try {
+        const data = await window.http({ method: 'GET', url: '/user/schedules', needAuth: true });
+        if (data) {
+        allSchedules = {
+            uncompleted: data.uncompleted || [],
+            completed: data.completed || []
+        };
+        renderRecentSchedules();
+        renderFullSchedules();
+        }
+    } catch (err) {
+        console.warn('获取日程失败', err);
+        // 失败时保留旧数据或显示空状态
+        renderRecentSchedules();
+        renderFullSchedules();
+    }
+    }
+
+    // 平滑滚动到日程界面
+    function scrollToScheduleView() {
+    const target = document.getElementById('scheduleFullView');
+    if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     }
 
     const dimensionBackendMap = {
@@ -1483,7 +1587,11 @@
 
         await loadMoreHistory(true);
 
+        await fetchAndRenderSchedules();  // 获取并渲染日程
+
         isDashboardReady = true;
+        // 确保页面加载后滚动到顶部
+        window.scrollTo(0, 0);
     }
 
     function bindEvents() {
@@ -1555,6 +1663,48 @@
             if (e.target === changePwdModal) closeChangePwdModal();
         });
         bindAvatarUpload();
+        // 最近日程卡片点击跳转到日程全览
+        const recentCard = document.getElementById('recentScheduleCard');
+        if (recentCard) {
+        recentCard.addEventListener('click', scrollToScheduleView);
+        }
+
+        // “查看全部”字样也触发跳转
+        const viewAllBtn = document.getElementById('viewAllSchedules');
+        if (viewAllBtn) {
+        viewAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation();       // 防止触发卡片事件
+            scrollToScheduleView();
+        });
+        }
+        // 回到顶部按钮逻辑
+        const backToTopBtn = document.getElementById('backToTopBtn');
+        if (backToTopBtn) {
+        // 点击滚动到顶部
+        backToTopBtn.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // 监听 body 滚动，判断是否接近底部
+        let ticking = false;
+        window.addEventListener('scroll', () => {
+            if (!ticking) {
+            requestAnimationFrame(() => {
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                const windowHeight = window.innerHeight;
+                const fullHeight = document.documentElement.scrollHeight;
+                // 距离底部 50px 以内视为到达底部
+                if (scrollTop + windowHeight >= fullHeight - 50) {
+                backToTopBtn.classList.add('show');
+                } else {
+                backToTopBtn.classList.remove('show');
+                }
+                ticking = false;
+            });
+            ticking = true;
+            }
+        });
+        }
     }
 
     if (document.readyState === 'loading') {

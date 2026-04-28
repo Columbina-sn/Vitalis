@@ -128,3 +128,19 @@ class StatusHistoryItem(BaseModel):
 class StatusHistoryResponse(BaseModel):
     dimension: StatusDimension
     history: List[StatusHistoryItem]
+
+
+class ScheduleItem(BaseModel):
+    id: int
+    schedule_type: str
+    title: str
+    description: Optional[str] = None
+    scheduled_time: Optional[str] = None  # ISO 格式字符串
+    is_completed: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class UserScheduleResponse(BaseModel):
+    uncompleted: List[ScheduleItem]
+    completed: List[ScheduleItem]

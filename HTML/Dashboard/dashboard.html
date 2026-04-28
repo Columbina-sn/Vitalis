@@ -64,10 +64,41 @@
 
       <div class="status-board">
         <div class="stats-section" id="statsContainer"></div>
-        <!-- 已移除最近事件记录卡片 -->
+        <!-- 最近日程卡片 -->
+        <div class="schedule-recent-card" id="recentScheduleCard">
+          <div class="schedule-recent-title">
+            <i class="fas fa-calendar-check"></i> 最近日程
+            <span class="schedule-recent-all" id="viewAllSchedules">查看全部 →</span>
+          </div>
+          <div class="schedule-recent-list" id="recentScheduleList">
+            <!-- 动态渲染 -->
+          </div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- 日程全览界面 -->
+  <div class="schedule-full-view" id="scheduleFullView">
+    <div class="schedule-full-inner">
+      <div class="schedule-half schedule-uncompleted">
+        <div class="schedule-half-title">
+          <i class="fas fa-spinner"></i> 未完成 · 进行中
+        </div>
+        <div class="schedule-scroll" id="uncompletedSchedules"></div>
+      </div>
+      <div class="schedule-half schedule-completed">
+        <div class="schedule-half-title">
+          <i class="fas fa-check-circle"></i> 已完成 · 归档
+        </div>
+        <div class="schedule-scroll" id="completedSchedules"></div>
+      </div>
+    </div>
+  </div>
+
+  <button id="backToTopBtn" class="back-to-top-btn" title="回到顶部">
+    <i class="fas fa-chevron-up"></i>
+  </button>
 
   <!-- 新手引导剧情模态框 -->
   <div id="storyModal" class="story-modal" style="display: none;">

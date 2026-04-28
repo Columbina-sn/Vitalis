@@ -10,7 +10,8 @@ from fastapi.responses import HTMLResponse
 from config.db_conf import get_db
 from core.deps import get_current_user
 from crud.user import update_user_nickname, update_user_avatar, delete_user_account, get_user_status_by_user_id, \
-    get_recent_events_by_user_id, update_user_password, get_status_history_by_dimension, get_user_export_data_html
+    get_recent_events_by_user_id, update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
+    get_user_schedules
 from schemas.user import (
     UserBaseInfoResponse,
     UserInfoResponse,
@@ -22,7 +23,7 @@ from schemas.user import (
     ChangePasswordRequest,
     StatusDimension,
     StatusHistoryResponse,
-    StatusHistoryItem
+    StatusHistoryItem, UserScheduleResponse
 )
 from utills.html_export import generate_export_html
 from utills.psychological_harmony_index import calculate_phi
@@ -328,3 +329,13 @@ async def export_user_data(
         status_code=200,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.get("/schedules", response_model=UserScheduleResponse, summary="获取当前用户所有日程")
+async def get_schedules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取用户所有日程，按是否完成分类并各自排序"""
+    data = await get_user_schedules(db, current_user.id)
+    return success_response(message="获取日程成功", data=data)
