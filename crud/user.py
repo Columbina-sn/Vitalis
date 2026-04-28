@@ -1,10 +1,11 @@
 # crud/user.py
-from sqlalchemy import select, delete, desc
+from sqlalchemy import select, delete, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from typing import Optional
 
-from models import User, UserStatus, InviteCode, UserStatusHistory, EmotionShift
+from models import User, UserStatus, InviteCode, UserStatusHistory, EmotionShift, MemorySnapshot, MemoryAnchor, \
+    UserSchedule
 from utills.psychological_harmony_index import calculate_phi
 from utills.security import get_hash_password
 
@@ -168,7 +169,7 @@ async def get_status_history_by_dimension(
 
 
 async def get_user_export_data_html(db: AsyncSession, user_id: int) -> dict:
-    """获取用于HTML导出的数据（不含对话历史）"""
+    """获取用于HTML导出的数据（新增记忆快照、锚点、日程）"""
     user = await db.get(User, user_id)
     if not user:
         return None
@@ -191,27 +192,65 @@ async def get_user_export_data_html(db: AsyncSession, user_id: int) -> dict:
             "worth": status_obj.self_worth,
             "meaning": status_obj.meaning_direction,
             "phi": status_obj.psychological_harmony_index,
-            "updated": status_obj.updated_at.strftime("%Y年%m月%d日 %H:%M"),
+            "updated": status_obj.updated_at.strftime("%Y年%m月%d日 %H:%M") if status_obj.updated_at else "未知",
         }
 
-    # 查询所有情绪转折
-    events_result = await db.execute(
-        select(EmotionShift)
-        .where(EmotionShift.user_id == user_id)
-        .order_by(EmotionShift.created_at.desc())
+    # --- 查询记忆快照 ---
+    snapshots_result = await db.execute(
+        select(MemorySnapshot)
+        .where(MemorySnapshot.user_id == user_id)
+        .order_by(MemorySnapshot.created_at.desc())
     )
-    emotion_shifts = events_result.scalars().all()
-    events_data = []
-    for e in emotion_shifts:
-        events_data.append({
-            "summary": e.emotion_change_detail,          # 用情绪变化描述代替原事件概述
-            "evaluation": "",                            # 新表无评价字段，留空
-            "time": e.created_at.strftime("%Y年%m月%d日 %H:%M"),
-        })
+    snapshots = snapshots_result.scalars().all()
+    snapshots_data = [
+        {
+            "summary": s.summary,
+            "created_at": s.created_at.strftime("%Y年%m月%d日 %H:%M") if s.created_at else "未知"
+        } for s in snapshots
+    ]
+
+    # --- 查询记忆锚点 ---
+    anchors_result = await db.execute(
+        select(MemoryAnchor)
+        .where(MemoryAnchor.user_id == user_id)
+        .order_by(MemoryAnchor.updated_at.desc())
+    )
+    anchors = anchors_result.scalars().all()
+    anchors_data = [
+        {
+            "type": a.anchor_type,
+            "content": a.content,
+            "confidence": float(a.confidence) if a.confidence is not None else 0.0  # 显式转换为 float
+        } for a in anchors
+    ]
+
+    # --- 查询用户日程，避免使用 NULLS LAST ---
+    schedule_result = await db.execute(
+        select(UserSchedule)
+        .where(UserSchedule.user_id == user_id)
+        .order_by(
+            # 将 scheduled_time 为 NULL 的排在最后
+            case((UserSchedule.scheduled_time.is_(None), 1), else_=0).asc(),
+            UserSchedule.scheduled_time.asc(),
+            UserSchedule.created_at.desc()
+        )
+    )
+    schedules = schedule_result.scalars().all()
+    schedules_data = [
+        {
+            "type": s.schedule_type,
+            "title": s.title,
+            "description": s.description,
+            "scheduled_time": s.scheduled_time.strftime("%Y年%m月%d日 %H:%M") if s.scheduled_time else "未指定具体时间",
+            "is_completed": s.is_completed
+        } for s in schedules
+    ]
 
     return {
         "user": user_info,
         "status": status_data,
-        "events": events_data,
+        "snapshots": snapshots_data,
+        "anchors": anchors_data,
+        "schedules": schedules_data,
         "export_time": datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"),
     }

@@ -3,8 +3,10 @@ Vitalis/
 ├── .venv/                          # 虚拟环境目录
 ├── main.py                         # 应用入口，注册路由
 ├── models.py                       # ORM 模型（User, UserStatus, Event, InviteCode, ConversationHistory, Comment）
+├── tasks.py                        # 定时任务
 ├── initialization.sql              # 数据库初始化脚本（建库、建所有表）
 ├── create_invite_code.sql          # 邀请码表建表脚本（同时删除过期未清的）
+├── one_time_script.sql             # 第一版升至第二版的一次性脚本
 ├── .env                            # 环境变量（数据库连接、JWT密钥等）
 ├── ai/
 │   ├── deepseek_client.py          # 封装好的大模型调用
@@ -1393,7 +1395,13 @@ Vitalis/
   · 改名意图：加入角色指代自检规则，从主语/宾语判断昵称归属，彻底解决AI误以为给自己改名的问题；empathyAI 同时加入人设禁令，不得解读用户新昵称。
   · 画像更新：保持 new_anchors 必须为对象数组，并增加容错逻辑（字符串自动包装）。
 - 效果：token消耗大幅下降，状态调整响应速度提升，日程创建成功率提高，改名误判基本消除。
-- 定时任务在指定时间正常触发，成功为当天有对话的用户生成摘要并写入 `memory_snapshots`。
+- tasks.py文件在运用包时会引用到deepseek_client.py，里面的环境变量还未挂载便无法解析
+  - 在tasks.py文件头部加入from dotenv import load_dotenv  load_dotenv()后程序可正常启动，定时任务在指定时间正常触发，成功为当天有对话的用户生成摘要并写入 `memory_snapshots`。
+
+- 更新数据导出功能以适配新的记忆系统：
+  · 在 `crud/user.py` 的 `get_user_export_data_html` 中移除旧的事件查询，新增 `memory_snapshots`、`memory_anchors`、`user_schedule` 表的查询，并转换 `MemoryAnchor.confidence` 为 float 以避免类型错误。
+  · 在 `utills/html_export.py` 中重构 `generate_export_html`，移除“重大事件”模块，新增“小元的日记本”、“关于你的小标签”、“你的日程与念想”三个板块，采用温柔、拟人化的文案和统一的暖色调样式。
+  · 修复因 `DECIMAL` 类型字段在模板中直接使用以及 MySQL 不兼容的 `NULLS LAST` 语法导致的导出 500 错误。
 
 
 ----------==========问题与解决==========----------
@@ -1474,7 +1482,12 @@ Vitalis/
     尝试方案：
       - 使用请求序列号 (loadDataSeq) 拦截旧响应：能解决部分场景，但仍可能因为请求发出的时机细微差异而失效，且增加了状态管理复杂度；
       - 在操作后延迟一段时间再请求数据：体验差且不可靠。
-    最终方案：放弃自动重新拉取数据，改为前端乐观更新。编辑或删除后，直接在本地修改数据源并重绘表格，没有网络请求，因此不存在竞态。同时增加手动刷新按钮作为数据校准的兜底手段。该方案在管理后台这种并发写入极少的场景下完全可用，显著简化了异步状态管理
+    最终方案：放弃自动重新拉取数据，改为前端乐观更新。编辑或删除后，直接在本地修改数据源并重绘表格，没有网络请求，因此不存在竞态。同时增加手动刷新按钮作为数据校准的兜底手段。该方案在管理后台这种并发写入极少的场景下完全可用，显著简化了异步状态管理。
+
+问题13：数据导出接口请求返回500错误，日志显示事务回滚。
+    原因：在重构数据导出功能时，`MemoryAnchor.confidence` 字段类型为 SQLAlchemy 的 `DECIMAL(3,2)`，在 Python 中是 `Decimal` 对象，直接在 f-string 中使用会因类型不匹配导致模板渲染异常；另外用户日程查询中使用了 `NULLS LAST` 语法，在 MySQL 中不兼容，导致查询失败。
+    解决：在 `crud/user.py` 中，将 `confidence` 显式转换为 `float` 后再放入返回字典；移除 `NULLS LAST`，改用 `case` 表达式将 `scheduled_time` 为 `NULL` 的行排在最后；同时在模板 HTML 生成函数中采用防御性的 `.get()` 方法和默认值，避免字段缺失引发异常。
+    验证：导出接口恢复正常，生成的 HTML 报告包含快照、锚点、日程，无漏项，样式完整。
 
 
 ----------==========学到的思维==========----------

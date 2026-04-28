@@ -43,7 +43,7 @@ def build_messages(
 3. 改名意图：从本轮对话提取用户给用户自己换的新昵称，填到 update_nickname；若用户只是在给你起外号、描述你或称呼你（语句主语/宾语是“你/小元/小鸽子”等），则 update_nickname 一律为 null。
 4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字，或维度变化≥8时的一句客观事实陈述（≤20字，可以包含反问、建议、关心）。对于你没有办法确认的信息，可适当询问。
 5. 用户画像：若用户表达的是稳定的个人特质、价值观或长期习惯，可创建/更新 anchors。new_anchors 必须是对象数组，每项含 anchor_type, content, confidence(0-1)。
-6. 日程创建：识别对话中任何表示未来时间节点的表达（如“五一”、“下周”、“月底”、“明天”、“放假”、“到时候”等），立即创建日程。按语义确定 schedule_type（short_task/long_goal/countdown/anniversary 等），scheduled_time 设为该时段的起点（若未指定具体时间，用 00:00:00）。标题和描述应概括计划内容。若已有相同内容则跳过。
+6. 日程创建：识别对话中任何表示未来时间节点的表达（如“五一”、“下周”、“月底”、“明天”、“放假”、“到时候”等），立即创建日程。按语义确定 schedule_type（short_task/long_goal/countdown/anniversary/birthday 等），scheduled_time 设为该时段的起点（若未指定具体时间，用 00:00:00）。标题和描述应概括计划内容。若已有相同内容则跳过。
 7. 防重复：与最近1小时记录重复则不创建。
 
 输出纯 JSON，格式：

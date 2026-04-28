@@ -3,21 +3,24 @@ from typing import Dict, Any
 
 
 def generate_export_html(data: Dict[str, Any]) -> str:
-    user = data["user"]
-    status = data["status"]
-    events = data["events"]
-    export_time = data["export_time"]
+    user = data.get("user", {})
+    status = data.get("status")
+    snapshots = data.get("snapshots", [])
+    anchors = data.get("anchors", [])
+    schedules = data.get("schedules", [])
+    export_time = data.get("export_time", "现在")
 
     # 状态条HTML生成函数
     def status_bar(label, value, color):
+        safe_value = max(0, min(100, int(value or 0)))
         return f"""
         <div style="margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; font-size: 14px; color: #5a4a3a;">
                 <span>{label}</span>
-                <span><strong>{value}</strong> / 100</span>
+                <span><strong>{safe_value}</strong> / 100</span>
             </div>
             <div style="background: #e8dfc8; height: 8px; border-radius: 10px; margin-top: 4px;">
-                <div style="background: {color}; width: {value}%; height: 8px; border-radius: 10px;"></div>
+                <div style="background: {color}; width: {safe_value}%; height: 8px; border-radius: 10px;"></div>
             </div>
         </div>
         """
@@ -27,49 +30,110 @@ def generate_export_html(data: Dict[str, Any]) -> str:
         status_html = f"""
         <div style="background: #fffcf0; padding: 20px; border-radius: 24px; margin: 20px 0;">
             <h3 style="color: #b87a48; margin-top: 0;">📊 当前五维状态</h3>
-            <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 16px;">最后更新：{status['updated']}</p>
-            {status_bar("💪 身心活力", status['physical'], "#f781be")}
-            {status_bar("😊 情绪基调", status['emotional'], "#f2711c")}
-            {status_bar("🤝 关系联结", status['relation'], "#2a7f78")}
-            {status_bar("⭐ 自我价值", status['worth'], "#f9d342")}
-            {status_bar("🧭 意义方向", status['meaning'], "#4a90e2")}
-            {status_bar("☯ 心理和谐", status['phi'], "#9b59b6")}
-        </div>
-        """
-
-    events_html = ""
-    if events:
-        items = ""
-        for e in events:
-            items += f"""
-            <div style="background: #fffef5; padding: 12px 16px; border-radius: 20px; margin-bottom: 10px; border-left: 4px solid #f3c28c;">
-                <div style="font-weight: bold; color: #7a5a3a;">{e['summary']}</div>
-                <div style="color: #a08060; font-size: 13px; margin: 4px 0;">评价：{e['evaluation']}</div>
-                <div style="color: #c0a080; font-size: 12px;">{e['time']}</div>
-            </div>
-            """
-        events_html = f"""
-        <div style="margin: 20px 0;">
-            <h3 style="color: #b87a48;">📅 重大事件记录（共{len(events)}条）</h3>
-            {items}
+            <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 16px;">最后更新：{status.get('updated', '未知')}</p>
+            {status_bar("💪 身心活力", status.get('physical', 50), "#f781be")}
+            {status_bar("😊 情绪基调", status.get('emotional', 50), "#f2711c")}
+            {status_bar("🤝 关系联结", status.get('relation', 50), "#2a7f78")}
+            {status_bar("⭐ 自我价值", status.get('worth', 50), "#f9d342")}
+            {status_bar("🧭 意义方向", status.get('meaning', 50), "#4a90e2")}
+            {status_bar("☯ 心理和谐", status.get('phi', 50), "#9b59b6")}
         </div>
         """
     else:
-        events_html = '<p style="color: #a0a0a0;">暂无记录的重大事件</p>'
+        status_html = """
+        <div style="background: #fffcf0; padding: 20px; border-radius: 24px; margin: 20px 0; text-align: center; color: #a0a0a0;">
+            🍃 状态数据正在采集中，稍后再来看看吧。
+        </div>
+        """
 
-    # 转义用户输入的内容（防止XSS）
+    # 转义函数
     def escape(s):
         if not s:
             return ""
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
-    # 注意：在动态插入数据时，要对用户提供的字段进行转义
+    # --- 记忆快照部分 ---
+    snapshots_html = ""
+    if snapshots:
+        items = ""
+        for s in snapshots:
+            items += f"""
+            <div style="background: #fffef5; padding: 12px 16px; border-radius: 20px; margin-bottom: 10px; border-left: 4px solid #a0c4c0;">
+                <div style="color: #5a6a5a; font-size: 14px; line-height: 1.5;">{escape(s.get('summary', ''))}</div>
+                <div style="color: #b0b0a0; font-size: 12px; margin-top: 6px;">{escape(s.get('created_at', ''))}</div>
+            </div>
+            """
+        snapshots_html = f"""
+        <div style="margin: 20px 0;">
+            <h3 style="color: #6a7a6a;">📓 小元的日记本（记忆快照）</h3>
+            <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 12px;">这些是每天聊天结束后，小元悄悄记下的关于你的点滴。</p>
+            {items}
+        </div>
+        """
+    else:
+        snapshots_html = '<p style="color: #a0a0a0;">🍃 小元还没来得及写下关于你的日记，多聊聊天吧。</p>'
+
+    # --- 记忆锚点部分 ---
+    anchors_html = ""
+    if anchors:
+        items = ""
+        for a in anchors:
+            items += f"""
+            <div style="background: #fcf9f0; padding: 10px 16px; border-radius: 16px; margin-bottom: 8px; display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12px; background: #e0d5c1; color: #5a4a3a; padding: 2px 10px; border-radius: 20px;">{escape(a.get('type', ''))}</span>
+                <span style="color: #4a3a2a;">{escape(a.get('content', ''))}</span>
+            </div>
+            """
+        anchors_html = f"""
+        <div style="margin: 20px 0;">
+            <h3 style="color: #9a7a5a;">🧷 关于你的小标签（记忆锚点）</h3>
+            <p style="color: #a0a0a0; font-size: 12px; margin-bottom: 12px;">小元记住的，关于你的习惯、喜好与重要的人。</p>
+            {items}
+        </div>
+        """
+    else:
+        anchors_html = '<p style="color: #a0a0a0;">🧷 这里还空空的，小元会慢慢记住更多关于你的事。</p>'
+
+    # --- 用户日程部分 ---
+    schedules_html = ""
+    if schedules:
+        items = ""
+        type_map = {
+            "short_task": "📋 短期任务",
+            "long_goal": "🎯 长期目标",
+            "countdown": "⏳ 倒数日",
+            "anniversary": "🎉 纪念日",
+            "birthday": "🎂 生日"
+        }
+        for sc in schedules:
+            display_type = type_map.get(sc.get('type', ''), f"📌 {sc.get('type', '')}")
+            completed_badge = '<span style="font-size: 11px; color: #6a8a6a; margin-left: 8px;">✓ 已完成</span>' if sc.get('is_completed') else ''
+            items += f"""
+            <div style="background: #fffdf7; padding: 12px 16px; border-radius: 20px; margin-bottom: 10px; border-left: 4px solid #d9b382;">
+                <div style="font-weight: bold; color: #7a5a3a;">{escape(sc.get('title', ''))} {completed_badge}</div>
+                <div style="color: #a08060; font-size: 13px; margin: 4px 0;">{escape(sc.get('description', '') or '')}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; color: #b0a090;">{display_type} · {escape(sc.get('scheduled_time', '未来某天'))}</span>
+                </div>
+            </div>
+            """
+        schedules_html = f"""
+        <div style="margin: 20px 0;">
+            <h3 style="color: #b87a48;">📅 你的日程与念想</h3>
+            {items}
+        </div>
+        """
+    else:
+        schedules_html = '<p style="color: #a0a0a0;">📅 暂无日程记录，开始规划一些事情吧。</p>'
+
+    # --- 组装完整 HTML ---
+    # 转义用户个人信息
     html_template = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>元气岛 · 个人数据报告</title>
+    <title>元气岛 · 回忆手帐</title>
     <style>
         body {{
             background: #fefaf0;
@@ -120,35 +184,29 @@ def generate_export_html(data: Dict[str, Any]) -> str:
             border-top: 1px dashed #e6d0b0;
             padding-top: 20px;
         }}
-        .badge {{
-            background: #f3c28c;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 30px;
-            font-size: 12px;
-            margin-left: 8px;
-        }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌿 元气岛 · 个人数据报告</h1>
-        <p style="color: #b0a088; font-size: 14px; margin-bottom: 24px;">导出时间：{export_time}</p>
+        <h1>🌿 元气岛 · 回忆手帐</h1>
+        <p style="color: #b0a088; font-size: 14px; margin-bottom: 24px;">轻轻翻开这一页，时间是 {escape(export_time)}</p>
 
-        <h2>👤 基本信息</h2>
+        <h2>👤 你的信息</h2>
         <div class="user-card">
-            <div class="user-field"><strong>手机号</strong><br>{escape(user['phone'])}</div>
-            <div class="user-field"><strong>昵称</strong><br>{escape(user['nickname'])}</div>
-            <div class="user-field"><strong>邀请码</strong><br>{escape(user['invite_code'])}</div>
-            <div class="user-field"><strong>注册时间</strong><br>{user['created_at']}</div>
+            <div class="user-field"><strong>手机号</strong><br>{escape(user.get('phone', '未知'))}</div>
+            <div class="user-field"><strong>昵称</strong><br>{escape(user.get('nickname', '未知'))}</div>
+            <div class="user-field"><strong>邀请码</strong><br>{escape(user.get('invite_code', '未知'))}</div>
+            <div class="user-field"><strong>加入元气岛</strong><br>{escape(user.get('created_at', '未知'))}</div>
         </div>
 
         {status_html}
-        {events_html}
+        {snapshots_html}
+        {anchors_html}
+        {schedules_html}
 
         <div class="footer">
-            🌱 感谢你在元气岛的每一次记录与对话<br>
-            本报告由 Vitalis 自动生成，仅限个人存档使用。
+            🌱 每一份记忆，都是我们共同走过的路。<br>
+            本手帐由 Vitalis 生成，请妥善保管。
         </div>
     </div>
 </body>
