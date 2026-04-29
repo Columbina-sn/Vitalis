@@ -1217,7 +1217,7 @@
                 chatInput.disabled = false;
                 chatInput.focus();
 
-                // 更新状态和事件
+                // 更新状态
                 if (response.status_updates) {
                     updateStatusFromBackend(response.status_updates);
                 }
@@ -1591,7 +1591,7 @@
 
         isDashboardReady = true;
         // 确保页面加载后滚动到顶部
-        window.scrollTo(0, 0);
+        // window.scrollTo(0, 0);
     }
 
     function bindEvents() {

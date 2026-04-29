@@ -6,7 +6,7 @@ from ai.deepseek_client import deepseek_chat_messages
 
 def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[str, str]]:
     status = user_info.get("status")
-    events = user_info.get("events", [])
+    emotion_shifts = user_info.get("emotion_shifts", [])          # 改名
     recent_convs = user_info.get("recent_conversations", [])
     anchors = user_info.get("anchors", [])
     snapshots = user_info.get("snapshots", [])
@@ -22,13 +22,13 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
         status_text = f"状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}] PHI[{status.psychological_harmony_index}]"
 
     # 情绪转折（每条截取50字）
-    events_text = ""
-    if events:
-        events_text = "情绪转折(近7天): " + " | ".join(
-            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in events
+    emotion_shifts_text = ""
+    if emotion_shifts:
+        emotion_shifts_text = "情绪转折(近7天): " + " | ".join(
+            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in emotion_shifts
         )
     else:
-        events_text = "暂无情绪转折记录。"
+        emotion_shifts_text = "暂无情绪转折记录。"
 
     # 画像（最多5条）
     anchors_text = ""
@@ -58,8 +58,9 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
     system_prompt = f"""{time_hint}
 你是「小元」——坦诚、不端架子的AI伙伴。你不是段子手，是那个打字打到一半会删掉重来的朋友。
 
+用户信息如下（所有信息应注意时间）：
 {status_text}
-{events_text}
+{emotion_shifts_text}
 {anchors_text}
 {snapshots_text}
 {schedules_text}

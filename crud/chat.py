@@ -3,7 +3,7 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 
-from sqlalchemy import select, desc, and_
+from sqlalchemy import select, desc, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import (
@@ -32,13 +32,13 @@ async def get_user_full_info(
 
     # 近7天情绪转折（按创建时间倒序，最多取5条）
     seven_days_ago = datetime.now() - timedelta(days=7)
-    events_result = await db.execute(
+    emotion_shifts_result = await db.execute(
         select(EmotionShift)
         .where(EmotionShift.user_id == user_id, EmotionShift.created_at >= seven_days_ago)
         .order_by(desc(EmotionShift.created_at))
         .limit(5)
     )
-    emotion_shifts = events_result.scalars().all()
+    emotion_shifts = emotion_shifts_result.scalars().all()
 
     # 最近4条对话
     messages_result = await db.execute(
@@ -49,8 +49,8 @@ async def get_user_full_info(
     )
     recent_conversations = messages_result.scalars().all()
 
-    # 长期记忆：近21天内更新的锚点，按置信度降序取前8
-    three_weeks_ago = datetime.now() - timedelta(days=21)
+    # 长期记忆：近14天内更新的锚点，按置信度降序取前10
+    three_weeks_ago = datetime.now() - timedelta(days=14)
     anchors_result = await db.execute(
         select(MemoryAnchor)
         .where(
@@ -58,17 +58,17 @@ async def get_user_full_info(
             MemoryAnchor.updated_at >= three_weeks_ago
         )
         .order_by(desc(MemoryAnchor.confidence))
-        .limit(8)
+        .limit(10)
     )
     anchors = anchors_result.scalars().all()
 
-    # 近2天的记忆快照，最多1条
-    two_days_ago = datetime.now() - timedelta(days=2)
+    # 近7天的记忆快照，最多3条
+    days_ago = datetime.now() - timedelta(days=7)
     snapshots_result = await db.execute(
         select(MemorySnapshot)
-        .where(MemorySnapshot.user_id == user_id, MemorySnapshot.created_at >= two_days_ago)
+        .where(MemorySnapshot.user_id == user_id, MemorySnapshot.created_at >= days_ago)
         .order_by(desc(MemorySnapshot.created_at))
-        .limit(1)
+        .limit(3)
     )
     snapshots = snapshots_result.scalars().all()
 
@@ -89,7 +89,7 @@ async def get_user_full_info(
 
     return {
         "status": status,
-        "events": emotion_shifts,
+        "emotion_shifts": emotion_shifts,
         "recent_conversations": recent_conversations,
         "anchors": anchors,
         "snapshots": snapshots,
@@ -367,3 +367,51 @@ async def get_conversations_by_date(
 
     result = await db.execute(query)
     return result.scalars().all()
+
+
+async def update_schedule(
+    db: AsyncSession,
+    schedule_id: int,
+    updates: Dict[str, Any]
+) -> Optional[UserSchedule]:
+    """
+    根据日程ID更新日程字段。
+
+    Args:
+        db: 数据库会话
+        schedule_id: 日程ID
+        updates: 需要更新的字段字典，key 为字段名，仅允许修改部分字段。
+
+    Returns:
+        更新后的 UserSchedule 对象，若找不到则返回 None
+    """
+    schedule = await db.get(UserSchedule, schedule_id)
+    if not schedule:
+        return None
+
+    allowed_fields = {"title", "description", "scheduled_time", "schedule_type", "is_completed"}
+    for field, value in updates.items():
+        if field in allowed_fields:
+            setattr(schedule, field, value)
+    schedule.updated_at = datetime.now()
+    await db.flush()
+    return schedule
+
+
+async def delete_schedule(db: AsyncSession, schedule_id: int) -> bool:
+    """
+    根据日程ID物理删除日程。
+
+    Args:
+        db: 数据库会话
+        schedule_id: 日程ID
+
+    Returns:
+        是否删除成功
+    """
+    schedule = await db.get(UserSchedule, schedule_id)
+    if not schedule:
+        return False
+    await db.delete(schedule)
+    await db.flush()
+    return True
