@@ -1,4 +1,5 @@
 # routers/chat.py
+import asyncio
 from datetime import date, datetime as dt
 from typing import Optional
 import difflib  # 模糊匹配
@@ -43,32 +44,28 @@ async def receive_user_message(
     if user_info is None:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    # 2. 查询所有未完成日程（供编辑/删除匹配用）
+    # 2. 获取未完成日程，构建匹配映射表
     upcoming_schedules = user_info.get("upcoming_schedules", [])
-    # 构建精确匹配映射表（支持同标题的多条日程，默认取第一条）
     schedule_map = {}
     for sch in upcoming_schedules:
         schedule_map.setdefault(sch.title, []).append(sch)
 
-    # 3. 情感 AI 生成共情回复
+    # 3. 并行调用情感 AI 与工作 AI
     empathy_messages = empathy_build_messages(req.message, user_info)
-    # print(empathy_messages)
-    empathy_result = await empathy_analog_ai(empathy_messages)
-    # print(empathy_result)
+    productivity_messages = productivity_build_messages(
+        user_message=req.message,
+        user_info=user_info,
+    )
+
+    empathy_task = empathy_analog_ai(empathy_messages)
+    prod_task = productivity_analog_ai(productivity_messages)
+
+    empathy_result, prod_result = await asyncio.gather(empathy_task, prod_task)
+
     empathy_reply = empathy_result["reply"]
     await add_conversation_history(db, current_user.id, RoleEnum.user, req.message)
 
-    # 4. 工作 AI 分析状态、日程、画像等
-    productivity_messages = productivity_build_messages(
-        user_message=req.message,
-        empathy_reply=empathy_reply,
-        user_info=user_info,
-    )
-    # print(productivity_messages)
-    prod_result = await productivity_analog_ai(productivity_messages)
-    # print(prod_result)
-
-    # 5. 更新玩家五维状态
+    # 4. 更新五维状态
     status_changes = prod_result.get("status_changes", {})
     if status_changes:
         await update_user_status(db, current_user.id, status_changes)
@@ -76,13 +73,13 @@ async def receive_user_message(
         if updated_status:
             status_changes["psychological_harmony_index"] = updated_status.psychological_harmony_index
 
-    # 6. 记录情绪转折（防重复）
+    # 5. 记录情绪转折（防重复）
     if prod_result.get("should_add_emotion_shifts") and prod_result["emotion_shifts_summary"]:
         if not await check_recent_duplicate_emotion_shift(db, current_user.id, prod_result["emotion_shifts_summary"]):
             await add_emotion_shift(db, current_user.id,
                                     emotion_change_detail=prod_result["emotion_shifts_summary"])
 
-    # 7. 更新用户画像
+    # 6. 更新用户画像
     if prod_result.get("should_update_anchors") and prod_result["new_anchors"]:
         for anchor_data in prod_result["new_anchors"]:
             if isinstance(anchor_data, str):
@@ -94,7 +91,7 @@ async def receive_user_message(
                 confidence=anchor_data.get("confidence", 0.5),
             )
 
-    # 8. 创建新日程（批量）
+    # 7. 创建新日程（批量）
     if prod_result.get("should_create_schedule") and prod_result.get("new_schedules"):
         for sched in prod_result["new_schedules"]:
             if not sched.get("title"):
@@ -113,19 +110,17 @@ async def receive_user_message(
                                       description=sched.get("description"),
                                       scheduled_time=scheduled_time)
 
-    # 9. 编辑日程（精确匹配 + 模糊匹配）
+    # 8. 编辑日程（精确匹配 + 模糊匹配）
     unmatched_edits = []
     if prod_result.get("schedule_edits"):
         for edit in prod_result["schedule_edits"]:
             old_title = edit.get("title", "")
             if not old_title:
                 continue
-            # 精确匹配
             target = None
             if old_title in schedule_map:
                 target = schedule_map[old_title][0]
             else:
-                # 模糊匹配 (相似度 ≥ 0.7)
                 best_ratio, best_sch = 0.0, None
                 for sch in upcoming_schedules:
                     ratio = difflib.SequenceMatcher(None, old_title, sch.title).ratio()
@@ -153,7 +148,7 @@ async def receive_user_message(
                 if updates:
                     await update_schedule(db, target.id, updates)
 
-    # 10. 删除日程
+    # 9. 删除日程
     unmatched_deletes = []
     if prod_result.get("schedule_deletes"):
         for del_item in prod_result["schedule_deletes"]:
@@ -176,22 +171,34 @@ async def receive_user_message(
             if target:
                 await delete_schedule(db, target.id)
 
-    # 11. 拼装最终回复
+    # 10. 拼装最终回复（温和版追问）
     final_reply = empathy_reply
     follow_up = prod_result.get("follow_up_text", "").strip()
 
     inquiry_parts = []
     if unmatched_edits:
-        inquiry_parts.append(f"想编辑“{'”、“'.join(unmatched_edits)}”，但没找到对应日程，能再说得具体些吗？")
+        titles_edit = "“" + "”、“".join(unmatched_edits) + "”"
+        if len(unmatched_edits) == 1:
+            edit_clause = f"刚才你想编辑的那个日程（{titles_edit}），我在你的列表里没找到完全一样名字的"
+        else:
+            edit_clause = f"你提到的那几个日程（{titles_edit}），我没能在你已有的日程里对上号"
+        inquiry_parts.append(edit_clause + "，能稍微再给我一点提示吗？比如大概是什么时候加的、或者里面写了什么字～")
+
     if unmatched_deletes:
-        inquiry_parts.append(f"想删除“{'”、“'.join(unmatched_deletes)}”，但没找到对应日程，能确认一下标题吗？")
+        titles_delete = "“" + "”、“".join(unmatched_deletes) + "”"
+        if len(unmatched_deletes) == 1:
+            del_clause = f"你说想删除的那个日程（{titles_delete}），我试着找了但没定位到它"
+        else:
+            del_clause = f"你提到的几个想要删除的日程（{titles_delete}），我没能在你的日程里找到"
+        inquiry_parts.append(del_clause + "，可以告诉我它们大概的名字或者内容吗？我再帮你核对一下～")
+
     if inquiry_parts:
-        follow_up = (follow_up + "\n\n" + " ".join(inquiry_parts)).strip()
+        follow_up = (follow_up + "\n\n" + "🌱 另外，" + "；".join(inquiry_parts)).strip()
 
     if follow_up:
         final_reply = final_reply.rstrip() + "\n\n" + follow_up
 
-    # 处理改名
+    # 11. 处理改名
     update_nickname = prod_result.get("update_nickname")
     if update_nickname:
         await update_user_nickname(db, current_user.id, update_nickname)

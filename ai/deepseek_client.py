@@ -11,7 +11,7 @@ MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 # 重试设置
 MAX_JSON_FIX_RETRIES = 2  # 当返回不是合法 JSON 时，最多重试次数
-TEMPERATURE = 0.3  # 降低至 0.3，确保 JSON 输出稳定
+TEMPERATURE = 0.45  # 降低至 0.45，确保 JSON 输出稳定的同时还能有点感情 工作ai单独设置为0.25
 MAX_TOKENS = 2000  # 默认最大 token
 
 if not API_KEY:

@@ -6,7 +6,6 @@ from ai.deepseek_client import deepseek_chat_messages
 
 def build_messages(
     user_message: str,
-    empathy_reply: str,
     user_info: Dict[str, Any]
 ) -> List[Dict[str, str]]:
     status = user_info.get("status")
@@ -46,7 +45,7 @@ def build_messages(
         schedules_text = "暂无日程"
 
     system_prompt = f"""{time_hint}
-【角色】你是小元的后台分析器，只输出结构化数据，不参与对话。
+【角色】你是小元的后台分析助手，只输出结构化数据，不参与对话。
 
 【五维定义（避免歧义）】
 用户上次状态：
@@ -66,7 +65,7 @@ def build_messages(
 2. 情绪转折：若本轮对话中有明确的值得记录的情绪起伏，用 ≤50 字概括为 emotion_shifts_summary，设 should_add_emotion_shifts=true。
 
 3. 改名意图：从本轮对话提取用户**给自己**换的新昵称，填到 update_nickname；若用户只是在给你起外号、描述你或称呼你，则 update_nickname 一律为 null，你只能给用户改昵称。
-4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字（如 已记下新昵称：xxx。 已记录新日程：类型（时间）：内容 等），或一张表格维度变化≥8时的一句简短的客观事实陈述（**可以询问感受、给建议、关心等**）。当且仅当需要用户确认编辑/删除日程时，可以包含一个简短问句（如“需要我删除‘散步’这个日程吗？”），但不能展开对话。
+4. follow_up_text：**仅限**对改名/日程/情绪转折的确认文字（如 已记下新昵称：xxx。 已记录新日程：类型（时间）：内容 等），或一张表格维度变化≥8时的一句简短的客观事实陈述（**不得包含任何问句、建议、关心、追问、开启新话题等**）。当且仅当需要用户确认编辑/删除日程时，可以包含一个简短问句（如“需要我删除‘散步’这个日程吗？”），但不能展开对话。
 
 用户现有画像（部分）：
 {anchors_text}
@@ -111,13 +110,13 @@ def build_messages(
         role = "user" if msg.role.value == "user" else "assistant"
         messages.append({"role": role, "content": msg.content})
     messages.append({"role": "user", "content": user_message})
-    messages.append({"role": "assistant", "content": empathy_reply})
+    messages.append({"role": "assistant", "content": "[同步处理中，请忽略]"})
     return messages
 
 
 async def analog_ai(messages: List[Dict[str, str]]) -> dict:
     try:
-        result = await deepseek_chat_messages(messages)
+        result = await deepseek_chat_messages(messages, temperature=0.25)
         return {
             "status_changes": result.get("status_changes", {}),
             "should_add_emotion_shifts": result.get("should_add_emotion_shifts", False),
