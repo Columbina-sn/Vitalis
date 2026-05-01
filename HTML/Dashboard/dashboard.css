@@ -666,6 +666,21 @@ body::-webkit-scrollbar-thumb,
   border-radius: 10px;
 }
 
+/* 给日程界面单独配置滚动条 */
+#uncompletedSchedules::-webkit-scrollbar-track {
+  background: #d4edf7;
+}
+#uncompletedSchedules::-webkit-scrollbar-thumb {
+  background: #a8e0f0;
+}
+
+#completedSchedules::-webkit-scrollbar-track {
+  background: #fff2cc;
+}
+#completedSchedules::-webkit-scrollbar-thumb {
+  background: #ffe899;
+}
+
 /* ============================================================ */
 /* 日程全览界面（第二屏） */
 /* ============================================================ */
@@ -679,6 +694,7 @@ body::-webkit-scrollbar-thumb,
   box-shadow: 0 15px 30px rgba(0,0,0,0.08);
   border: 1px solid #f3e0bc;
   overflow: hidden;
+  cursor: default;
 }
 
 .schedule-full-inner {
@@ -725,6 +741,7 @@ body::-webkit-scrollbar-thumb,
 
 /* 单条日程卡片 */
 .schedule-item {
+  margin: 2px;
   background: rgba(255, 255, 255, 0.85);
   border-radius: 24px;
   padding: 12px 16px;
@@ -736,7 +753,7 @@ body::-webkit-scrollbar-thumb,
   transition: transform 0.2s;
 }
 .schedule-item:hover {
-  transform: scale(1.02);
+  transform: scale(1.01);
 }
 
 /* 类型专属颜色（柔和，带蜡笔感） */
@@ -748,8 +765,8 @@ body::-webkit-scrollbar-thumb,
 
 /* 已完成卡片降低透明度 */
 .schedule-completed .schedule-item {
-  opacity: 0.7;
-  background: rgba(255, 255, 255, 0.7);
+  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .schedule-item-icon {

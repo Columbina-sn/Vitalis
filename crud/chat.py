@@ -3,7 +3,7 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 
-from sqlalchemy import select, desc, and_, case
+from sqlalchemy import select, desc, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import (
@@ -18,7 +18,7 @@ async def get_user_full_info(
 ) -> Optional[Dict[str, Any]]:
     """
     获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
-    长期记忆（近21天锚点按置信度取前8、近2天摘要1条、未来7天日程不限条数）。
+    长期记忆（近21天锚点按置信度取前8、近2天摘要1条、14天前7天后日程不限条数）。
     """
     user = await db.get(User, user_id)
     if not user:
@@ -72,16 +72,19 @@ async def get_user_full_info(
     )
     snapshots = snapshots_result.scalars().all()
 
-    # 未来7天内未完成的日程（不限条数）
+    # 14天前7天后未完成的日程（不限条数）
     now = datetime.now()
+    past_time = now - timedelta(days=14)
     future_deadline = now + timedelta(days=7)
     schedules_result = await db.execute(
         select(UserSchedule)
         .where(
             UserSchedule.user_id == user_id,
             UserSchedule.is_completed == False,
-            UserSchedule.scheduled_time >= now,
-            UserSchedule.scheduled_time <= future_deadline
+            or_(
+                UserSchedule.scheduled_time.is_(None),
+                (UserSchedule.scheduled_time >= past_time) & (UserSchedule.scheduled_time <= future_deadline)
+            )
         )
         .order_by(UserSchedule.scheduled_time.asc())
     )

@@ -56,6 +56,8 @@ async def receive_user_message(
         user_message=req.message,
         user_info=user_info,
     )
+    # print(empathy_messages)
+    # print(productivity_messages)
 
     empathy_task = empathy_analog_ai(empathy_messages)
     prod_task = productivity_analog_ai(productivity_messages)
