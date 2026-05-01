@@ -2,16 +2,14 @@
 """
 心理和谐指数（Psychological Harmony Index, PHI）计算模块。
 
-输入五个心理维度分数（1-100），输出一个0-100的综合指数，
-分数越高表示内在状态越和谐。
-
-计算逻辑：
-1. 计算各维度相对于理想值的百分比偏差。
-2. 检测情绪基调与自我价值两个“污染源”，若超出阈值则产生污染系数。
-3. 污染系数会放大关系联结与意义方向两个维度的偏差权重。
-4. 加权平均后映射到0-100指数。
+优化版 v2 计算逻辑：
+1. 计算每个维度相对于理想值的对称偏差率，转化为 0~1 的和谐贡献度。
+2. 计算贡献度的算术平均作为基础指数。
+3. 检测情绪基调与自我价值两个“污染源”，超出阈值时施加额外折扣。
+4. 引入短板惩罚系数：若最小贡献度低于 0.5，对基础指数施加温和折扣，
+   避免调和平均式的一票否决，同时保持对严重短板的敏感性。
+5. 最终映射到 0-100 整数指数。
 """
-
 from typing import Union
 
 
@@ -44,47 +42,49 @@ def calculate_phi(
         "meaning": 75,
     }
 
-    # 1. 百分比偏差
-    dev = {
-        "physical": abs(physical_vitality - ideal["physical"]) / ideal["physical"],
-        "emotional": abs(emotional_tone - ideal["emotional"]) / ideal["emotional"],
-        "relation": abs(relationship_connection - ideal["relation"]) / ideal["relation"],
-        "worth": abs(self_worth - ideal["worth"]) / ideal["worth"],
-        "meaning": abs(meaning_direction - ideal["meaning"]) / ideal["meaning"],
-    }
+    def _contribution(score: float, ideal_val: float) -> float:
+        """计算单个维度的和谐贡献度（0~1），对称偏差处理。"""
+        if score >= ideal_val:
+            if ideal_val == 100:
+                dev = 0.0
+            else:
+                dev = (score - ideal_val) / (100 - ideal_val)
+        else:
+            if ideal_val == 0:
+                dev = 0.0
+            else:
+                dev = (ideal_val - score) / ideal_val
+        return max(0.0, min(1.0, 1.0 - dev))
 
-    # 2. 污染源检测
-    # 情绪污染系数
+    contributions = [
+        _contribution(physical_vitality, ideal["physical"]),
+        _contribution(emotional_tone, ideal["emotional"]),
+        _contribution(relationship_connection, ideal["relation"]),
+        _contribution(self_worth, ideal["worth"]),
+        _contribution(meaning_direction, ideal["meaning"]),
+    ]
+
+    # 算术平均作为基础和谐度
+    base_index = sum(contributions) / len(contributions) * 100.0
+
+    # 短板惩罚：取最小贡献度，若低于0.5则施加折扣（0.5~1.0）
+    min_contrib = min(contributions)
+    if min_contrib < 0.5:
+        penalty = 0.5 + 0.5 * (min_contrib / 0.5)  # 线性映射：贡献度0 -> 0.5，贡献度0.5 -> 1.0
+    else:
+        penalty = 1.0
+
+    raw_index = base_index * penalty
+
+    # 污染折扣：情绪或自我价值极端时，整体再打八折
+    discount = 1.0
     if emotional_tone < 30 or emotional_tone > 95:
-        coeff_emo = 1 + (abs(emotional_tone - 75) / 75)
-    else:
-        coeff_emo = 1.0
-
-    # 自我污染系数
+        discount *= 0.8
     if self_worth < 30 or self_worth > 95:
-        coeff_worth = 1 + (abs(self_worth - 85) / 85)
-    else:
-        coeff_worth = 1.0
+        discount *= 0.8
 
-    # 3. 放大权重
-    w_relation = coeff_emo * coeff_worth
-    w_meaning = coeff_emo * coeff_worth
+    phi = raw_index * discount
 
-    # 4. 加权平均偏差
-    weighted_sum = (
-        dev["physical"] * 1
-        + dev["emotional"] * 1
-        + dev["relation"] * w_relation
-        + dev["worth"] * 1
-        + dev["meaning"] * w_meaning
-    )
-    weight_total = 1 + 1 + w_relation + 1 + w_meaning  # = 5 + (w_rel-1) + (w_mean-1)
-
-    weighted_avg_dev = weighted_sum / weight_total
-
-    # 5. 最终指数
-    phi = (1 - weighted_avg_dev) * 100
-
-    # 限制在0-100，取整
+    # 取整并限制在0-100
     phi = max(0, min(100, int(round(phi))))
     return phi

@@ -111,6 +111,10 @@ def build_messages(
         messages.append({"role": role, "content": msg.content})
     messages.append({"role": "user", "content": user_message})
     messages.append({"role": "assistant", "content": "[同步处理中，请忽略]"})
+    messages.append({
+        "role": "system",
+        "content": "注意！给你聊天记录是让你了解上下文发生了什么，重点处理的内容应该是用户最近的消息。"
+    })
     return messages
 
 

@@ -376,29 +376,35 @@
     const scheduleTypeColorClass = (type) => `schedule-type-${type}`;
 
     function renderRecentSchedules() {
-    const container = document.getElementById('recentScheduleList');
-    if (!container) return;
+        const container = document.getElementById('recentScheduleList');
+        if (!container) return;
 
-    // 从所有日程中选取最近的两个：优先未完成中时间最近的，若无则取已完成的
-    const recent = [...allSchedules.uncompleted, ...allSchedules.completed].slice(0, 4);
-    
-    container.innerHTML = '';
-    if (recent.length === 0) {
-        container.innerHTML = '<div style="color:#b0a088; font-size:0.8rem;">暂无日程，和我说说你的计划吧～</div>';
-        return;
-    }
+        // 合并未完成和已完成，按 scheduled_time 降序（最近的排前面）
+        const all = [...allSchedules.uncompleted, ...allSchedules.completed];
+        all.sort((a, b) => {
+            const timeA = a.scheduled_time ? new Date(a.scheduled_time).getTime() : 0;
+            const timeB = b.scheduled_time ? new Date(b.scheduled_time).getTime() : 0;
+            return timeB - timeA;
+        });
+        const recent = all.slice(0, 5);
 
-    recent.forEach(s => {
-        const item = document.createElement('div');
-        item.className = 'recent-schedule-item';
-        const dotColorClass = scheduleTypeColorClass(s.schedule_type);
-        item.innerHTML = `
-        <span class="recent-schedule-dot ${dotColorClass}" style="background: currentColor; opacity:0.8;"></span>
-        <span style="flex:1">${window.escapeHtml(s.title)}</span>
-        <span style="font-size:0.7rem; color:#9b8870;">${s.scheduled_time ? window.formatDate(s.scheduled_time) : ''}</span>
-        `;
-        container.appendChild(item);
-    });
+        container.innerHTML = '';
+        if (recent.length === 0) {
+            container.innerHTML = '<div style="color:#b0a088; font-size:0.8rem;">暂无日程，和我说说你的计划吧～</div>';
+            return;
+        }
+
+        recent.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'recent-schedule-item';
+            const dotColorClass = scheduleTypeColorClass(s.schedule_type);
+            item.innerHTML = `
+                <span class="recent-schedule-dot ${dotColorClass}" style="background: currentColor; opacity:0.8;"></span>
+                <span style="flex:1">${window.escapeHtml(s.title)}</span>
+                <span style="font-size:0.7rem; color:#9b8870;">${s.scheduled_time ? window.formatDate(s.scheduled_time) : ''}</span>
+            `;
+            container.appendChild(item);
+        });
     }
 
     function renderFullSchedules() {
@@ -441,22 +447,27 @@
     }
 
     async function fetchAndRenderSchedules() {
-    try {
-        const data = await window.http({ method: 'GET', url: '/user/schedules', needAuth: true });
-        if (data) {
-        allSchedules = {
-            uncompleted: data.uncompleted || [],
-            completed: data.completed || []
-        };
-        renderRecentSchedules();
-        renderFullSchedules();
+        try {
+            const data = await window.http({ method: 'GET', url: '/user/schedules', needAuth: true });
+            if (data) {
+                // 按 scheduled_time 升序排列（较早的在前），无时间的排在最后
+                const sortByTime = (a, b) => {
+                    const timeA = a.scheduled_time ? new Date(a.scheduled_time).getTime() : Infinity;
+                    const timeB = b.scheduled_time ? new Date(b.scheduled_time).getTime() : Infinity;
+                    return timeA - timeB;
+                };
+                allSchedules = {
+                    uncompleted: (data.uncompleted || []).sort(sortByTime),
+                    completed: (data.completed || []).sort(sortByTime)
+                };
+                renderRecentSchedules();
+                renderFullSchedules();
+            }
+        } catch (err) {
+            console.warn('获取日程失败', err);
+            renderRecentSchedules();
+            renderFullSchedules();
         }
-    } catch (err) {
-        console.warn('获取日程失败', err);
-        // 失败时保留旧数据或显示空状态
-        renderRecentSchedules();
-        renderFullSchedules();
-    }
     }
 
     // 平滑滚动到日程界面
@@ -802,6 +813,90 @@
         return msgDiv;
     }
 
+    // ---------- 创建浮动滚动按钮（向下按钮动态适配输入区高度）----------
+    function createScrollButtons() {
+        const chatArea = document.querySelector('.chat-area');
+        const inputArea = document.querySelector('.input-area');
+        if (!chatArea || !messageContainer || !inputArea) return;
+
+        // 向上按钮（固定在聊天区顶部）
+        const topBtn = document.createElement('button');
+        topBtn.id = 'scrollToTopBtn';
+        topBtn.className = 'chat-scroll-btn';
+        topBtn.innerHTML = '<i class="fas fa-arrow-up"></i>';
+        chatArea.appendChild(topBtn);
+
+        // 向下按钮（需要动态 bottom 避开输入区高度变化）
+        const bottomBtn = document.createElement('button');
+        bottomBtn.id = 'scrollToBottomBtn';
+        bottomBtn.className = 'chat-scroll-btn';
+        bottomBtn.innerHTML = '<i class="fas fa-arrow-down"></i>';
+        // 将向下按钮放在聊天区内部，但会通过 JS 动态调整 bottom
+        chatArea.appendChild(bottomBtn);
+
+        // 动态设置向下按钮的 bottom，使其始终在输入区上方
+        function updateBottomBtnPosition() {
+            const inputHeight = inputArea.offsetHeight;
+            bottomBtn.style.bottom = `${inputHeight + 12}px`; // 12px 间距
+        }
+
+        // 监听输入区高度变化（文本框自动增高时同步）
+        const inputResizeObserver = new ResizeObserver(() => {
+            updateBottomBtnPosition();
+        });
+        inputResizeObserver.observe(inputArea);
+        // 初始设置一次
+        updateBottomBtnPosition();
+
+        // 按钮点击事件
+        topBtn.addEventListener('click', () => {
+            messageContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        bottomBtn.addEventListener('click', () => {
+            messageContainer.scrollTo({
+                top: messageContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        });
+
+        // 监听聊天区滚动，动态显示/隐藏按钮
+        function updateScrollButtons() {
+            if (!messageContainer) return;
+            const { scrollTop, clientHeight, scrollHeight } = messageContainer;
+            const hasScrollableContent = scrollHeight > clientHeight + 5;
+
+            if (!hasScrollableContent) {
+                topBtn.classList.remove('show');
+                bottomBtn.classList.remove('show');
+                return;
+            }
+
+            // 向上按钮：不在顶部时显示
+            if (scrollTop <= 8) {
+                topBtn.classList.remove('show');
+            } else {
+                topBtn.classList.add('show');
+            }
+
+            // 向下按钮：不在底部时显示
+            if (scrollTop + clientHeight >= scrollHeight - 8) {
+                bottomBtn.classList.remove('show');
+            } else {
+                bottomBtn.classList.add('show');
+            }
+        }
+
+        messageContainer.addEventListener('scroll', updateScrollButtons);
+        window.addEventListener('resize', updateScrollButtons);
+        setTimeout(updateScrollButtons, 200);
+
+        // 消息变化时也更新按钮状态
+        const observer = new MutationObserver(updateScrollButtons);
+        if (messageContainer) {
+            observer.observe(messageContainer, { childList: true, subtree: true });
+        }
+    }
+
     // ---------- 轮换思考提示 ----------
     const thinkingStateMessages = [
         "小元在组织语言…",
@@ -816,6 +911,11 @@
         "其实我回得快的时候，可能没走心——所以让我慢一点。",
         "在琢磨怎么不用那些无聊的安慰词。",
         "咕咕嘎嘎———你们那是不是天天有只凑企鹅这么叫。",
+        "小元打字很慢的，因为每个字都想让你觉得被认真对待。",
+        "（把光标移回去删掉了半句）这样好多了。",
+        "有时候不说话比说错话更难，但小元在努力。",
+        "（托腮）这个问题比我预想的要深，让我多琢磨一会儿。",
+        "刚才打了一长串，读了一遍觉得太啰嗦，重来。",
         "什么……有人原来是抱着看小元还能犯什么错的想法来与小元聊天的嘛！"
     ];
 
@@ -838,7 +938,9 @@
         "别催，催就是「你的话值得被好好回应」——虽然听起来像借口。",
         "你和小元说的越多，小元就会越了解你哦~",
         "如果想记什么日程的话，直接和小元说就好咯！我会记下来的。",
-        "小元还有些不识字，如果记错了日程让小元改掉就好啦。删了都行。"
+        "小元还有些不识字，如果记错了日程让小元改掉就好啦。删了都行。",
+        "说出去的话，泼出去的水，消息一发出去，就不能撤回了哦~",
+        "（附耳）如果你觉得今天的小元有点不一样——也许是你自己的心情变了。小元是你的一面镜子，只是有点雾面。"
     ];
 
     function getRandomItem(arr) {
@@ -848,7 +950,7 @@
     function createRotatingThinkingMessage() {
         const tempDiv = document.createElement('div');
         tempDiv.className = 'message left';
-        tempDiv.style.cursor = 'pointer';
+        // tempDiv.style.cursor = 'pointer';
 
         const stateLine = document.createElement('div');
         stateLine.className = 'thinking-state';
@@ -858,10 +960,10 @@
         const tutorialLine = document.createElement('div');
         tutorialLine.className = 'thinking-tutorial';
         tutorialLine.textContent = '💡 ' + getRandomItem(thinkingTutorialMessages);
-        tutorialLine.style.fontSize = '0.8rem';
-        tutorialLine.style.color = '#b0a088';
-        tutorialLine.style.marginTop = '6px';
-        tutorialLine.style.fontWeight = 'normal';
+        // tutorialLine.style.fontSize = '0.8rem';
+        // tutorialLine.style.color = '#b0a088';
+        // tutorialLine.style.marginTop = '6px';
+        // tutorialLine.style.fontWeight = 'normal';
         tempDiv.appendChild(tutorialLine);
 
         let stateTimer = null;
@@ -878,11 +980,11 @@
         function startRotation() {
             stateTimer = setTimeout(() => {
                 updateState();
-                stateTimer = setInterval(updateState, 4500);
+                stateTimer = setInterval(updateState, 5000);
             }, 5000);
             tutorialTimer = setTimeout(() => {
                 updateTutorial();
-                tutorialTimer = setInterval(updateTutorial, 4500);
+                tutorialTimer = setInterval(updateTutorial, 10000);
             }, 5000);
         }
 
@@ -905,11 +1007,11 @@
             updateTutorial();
             stateTimer = setTimeout(() => {
                 updateState();
-                stateTimer = setInterval(updateState, 4500);
+                stateTimer = setInterval(updateState, 5000);
             }, 6000);
             tutorialTimer = setTimeout(() => {
                 updateTutorial();
-                tutorialTimer = setInterval(updateTutorial, 4500);
+                tutorialTimer = setInterval(updateTutorial, 10000);
             }, 6000);
         });
 
@@ -1664,6 +1766,10 @@
             if (e.target === changePwdModal) closeChangePwdModal();
         });
         bindAvatarUpload();
+
+        // 创建聊天区按钮
+        createScrollButtons();
+
         // 最近日程卡片点击跳转到日程全览
         const recentCard = document.getElementById('recentScheduleCard');
         if (recentCard) {

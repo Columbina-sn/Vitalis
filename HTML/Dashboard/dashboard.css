@@ -404,6 +404,42 @@ body {
   z-index: -1; /* 置于底层 */
 }
 
+/* ============================================================
+   思考卡片增强：悄悄话视觉 + 呼吸动画
+   ============================================================ */
+
+/* 教学提示：更像悄悄话的视觉风格 */
+.thinking-tutorial {
+    font-size: 0.78rem !important;      /* 强制覆盖可能的默认样式 */
+    color: #b8a896 !important;          /* 更淡的颜色，像耳语 */
+    font-style: italic;                 /* 斜体，有一种"私下说"的语感 */
+    margin-top: 6px;
+    opacity: 0.85;                     /* 轻微透明，降低存在感 */
+    letter-spacing: 0.01em;            /* 略微拉开字间距，更轻盈 */
+    font-weight: normal !important;     /* 确保不是粗体 */
+}
+
+/* 思考状态文字：极慢的呼吸动画，让用户感知"这条消息是活的" */
+.thinking-state {
+    animation: thinkingBreathe 2.5s ease-in-out infinite;
+    font-weight: normal;                /* 确保不是粗体 */
+}
+
+@keyframes thinkingBreathe {
+    0%, 100% { opacity: 0.6;transform: scale(0.99); }  /* 范围拉大，效果更明显 */
+    50%      { opacity: 1;transform: scale(1.01); }
+}
+
+/* 思考卡片整体的微调 */
+.message.left .thinking-state {
+    cursor: wait;              /* 鼠标悬停显示等待光标，暗示正在生成 */
+}
+
+/* 思考卡片容器本身的微调 */
+.message.left[style*="cursor: pointer"] {
+    cursor: wait !important;   /* 覆盖 JS 中设置的 pointer */
+}
+
 /* ---------- 时间分割线 ---------- */
 .time-divider {
     display: flex;
@@ -472,19 +508,6 @@ body {
   box-shadow: 0 0 0 3px #fcf3e2;
 }
 
-/* 定制 textarea 滚动条样式 */
-.input-area textarea::-webkit-scrollbar {
-  width: 5px;
-}
-.input-area textarea::-webkit-scrollbar-track {
-  background: #f5ecd8;
-  border-radius: 10px;
-}
-.input-area textarea::-webkit-scrollbar-thumb {
-  background: #ddc8a4;
-  border-radius: 10px;
-}
-
 .input-area button {
   background: #f8e6c8; /* 背景色 */
   border: none; /* 无边框 */
@@ -507,6 +530,56 @@ body {
 .input-area button:active {
   transform: translateY(3px); /* 按下时向下移动3px */
   box-shadow: none; /* 移除阴影，模拟按钮按下 */
+}
+
+/* ============================================================
+   新增：聊天区浮动滚动按钮样式
+   ============================================================ */
+.chat-scroll-btn {
+  position: absolute;          /* 绝对定位，相对于 .chat-area */
+  right: 20px;                 /* 距离右侧20px */
+  z-index: 10;                 /* 确保在消息和活页孔之上 */
+  width: 38px;                 /* 按钮宽度 */
+  height: 38px;                /* 按钮高度 */
+  border-radius: 50%;          /* 圆形按钮 */
+  background: rgba(255, 255, 240, 0.5); /* 偏黄白色，透明度0.5 */
+  backdrop-filter: blur(6px);  /* 轻微毛玻璃效果 */
+  border: 1px solid rgba(220, 200, 150, 0.7); /* 柔和边框 */
+  color: #b87a48;              /* 图标颜色 */
+  font-size: 1.2rem;           /* 图标大小 */
+  display: flex;               /* 弹性布局，方便居中图标 */
+  align-items: center;         /* 垂直居中图标 */
+  justify-content: center;     /* 水平居中图标 */
+  cursor: pointer;             /* 鼠标手势 */
+  transition: opacity 0.25s ease, visibility 0.25s ease, background 0.2s;
+  opacity: 0;                  /* 默认透明 */
+  visibility: hidden;          /* 默认隐藏 */
+  pointer-events: none;        /* 不拦截鼠标事件 */
+  box-shadow: 0 2px 8px rgba(120, 80, 40, 0.1);
+}
+
+/* 显示状态 */
+.chat-scroll-btn.show {
+  opacity: 0.5;
+  visibility: visible;
+  pointer-events: auto;        /* 允许点击 */
+}
+
+/* 悬停效果 */
+.chat-scroll-btn:hover {
+  background: rgba(255, 245, 215, 0.8); /* 悬停时背景加深 */
+  transform: scale(1.08);
+}
+
+/* 向上按钮位置 */
+#scrollToTopBtn {
+  top: 12px;
+  right: 18px;                /* 与聊天区右侧保持合适间距 */
+}
+
+/* 向下按钮位置 */
+#scrollToBottomBtn {
+  right: 18px;
 }
 
 /* ============================================================

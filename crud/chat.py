@@ -50,12 +50,12 @@ async def get_user_full_info(
     recent_conversations = messages_result.scalars().all()
 
     # 长期记忆：近14天内更新的锚点，按置信度降序取前10
-    three_weeks_ago = datetime.now() - timedelta(days=14)
+    two_weeks_ago = datetime.now() - timedelta(days=14)
     anchors_result = await db.execute(
         select(MemoryAnchor)
         .where(
             MemoryAnchor.user_id == user_id,
-            MemoryAnchor.updated_at >= three_weeks_ago
+            MemoryAnchor.updated_at >= two_weeks_ago
         )
         .order_by(desc(MemoryAnchor.confidence))
         .limit(10)

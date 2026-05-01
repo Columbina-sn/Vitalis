@@ -63,6 +63,8 @@ async def receive_user_message(
     prod_task = productivity_analog_ai(productivity_messages)
 
     empathy_result, prod_result = await asyncio.gather(empathy_task, prod_task)
+    print(empathy_result)
+    print(prod_result)
 
     empathy_reply = empathy_result["reply"]
     await add_conversation_history(db, current_user.id, RoleEnum.user, req.message)
@@ -198,7 +200,7 @@ async def receive_user_message(
         follow_up = (follow_up + "\n\n" + "🌱 另外，" + "；".join(inquiry_parts)).strip()
 
     if follow_up:
-        final_reply = final_reply.rstrip() + "\n\n" + follow_up
+        final_reply = final_reply.rstrip() + "\n\nOS：" + follow_up
 
     # 11. 处理改名
     update_nickname = prod_result.get("update_nickname")
