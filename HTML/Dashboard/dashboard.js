@@ -366,11 +366,11 @@
 
     // ======================== 日程渲染 ========================
     const scheduleTypeIconMap = {
-    short_task: 'fa-tasks',
-    long_goal: 'fa-flag',
-    countdown: 'fa-hourglass-half',
-    anniversary: 'fa-heart',
-    birthday: 'fa-cake-candles'
+        short_task: 'fa-tasks',
+        long_goal: 'fa-flag',
+        countdown: 'fa-hourglass-half',
+        anniversary: 'fa-heart',
+        birthday: 'fa-cake-candles'
     };
 
     const scheduleTypeColorClass = (type) => `schedule-type-${type}`;
@@ -1324,6 +1324,8 @@
                 if (response.status_updates) {
                     updateStatusFromBackend(response.status_updates);
                 }
+                
+                await fetchAndRenderSchedules();
             });
 
         } catch (err) {
@@ -1770,47 +1772,51 @@
         // 创建聊天区按钮
         createScrollButtons();
 
-        // 最近日程卡片点击跳转到日程全览
+        // 最近日程卡片点击：① 刷新日程 ② 滚动到日程全览
         const recentCard = document.getElementById('recentScheduleCard');
         if (recentCard) {
-        recentCard.addEventListener('click', scrollToScheduleView);
+            recentCard.addEventListener('click', async () => {
+                await fetchAndRenderSchedules();   // 先拉最新日程
+                scrollToScheduleView();
+            });
         }
 
-        // “查看全部”字样也触发跳转
+        // “查看更多”按钮
         const viewAllBtn = document.getElementById('viewAllSchedules');
         if (viewAllBtn) {
-        viewAllBtn.addEventListener('click', (e) => {
-            e.stopPropagation();       // 防止触发卡片事件
-            scrollToScheduleView();
-        });
+            viewAllBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await fetchAndRenderSchedules();
+                scrollToScheduleView();
+            });
         }
         // 回到顶部按钮逻辑
         const backToTopBtn = document.getElementById('backToTopBtn');
         if (backToTopBtn) {
-        // 点击滚动到顶部
-        backToTopBtn.addEventListener('click', () => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-
-        // 监听 body 滚动，判断是否接近底部
-        let ticking = false;
-        window.addEventListener('scroll', () => {
-            if (!ticking) {
-            requestAnimationFrame(() => {
-                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                const windowHeight = window.innerHeight;
-                const fullHeight = document.documentElement.scrollHeight;
-                // 距离底部 50px 以内视为到达底部
-                if (scrollTop + windowHeight >= fullHeight - 50) {
-                backToTopBtn.classList.add('show');
-                } else {
-                backToTopBtn.classList.remove('show');
-                }
-                ticking = false;
+            // 点击滚动到顶部
+            backToTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             });
-            ticking = true;
-            }
-        });
+
+            // 监听 body 滚动，判断是否接近底部
+            let ticking = false;
+            window.addEventListener('scroll', () => {
+                if (!ticking) {
+                requestAnimationFrame(() => {
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    const windowHeight = window.innerHeight;
+                    const fullHeight = document.documentElement.scrollHeight;
+                    // 距离底部 50px 以内视为到达底部
+                    if (scrollTop + windowHeight >= fullHeight - 50) {
+                    backToTopBtn.classList.add('show');
+                    } else {
+                    backToTopBtn.classList.remove('show');
+                    }
+                    ticking = false;
+                });
+                ticking = true;
+                }
+            });
         }
     }
 
