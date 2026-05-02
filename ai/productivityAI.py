@@ -10,9 +10,9 @@ def build_messages(
 ) -> List[Dict[str, str]]:
     status = user_info.get("status")
     emotion_shifts = user_info.get("emotion_shifts", [])
-    recent_convs = user_info.get("recent_conversations", [])
     anchors = user_info.get("anchors", [])
-    schedules = user_info.get("upcoming_schedules", [])  # 仍可传递未来日程作背景
+    schedules = user_info.get("upcoming_schedules", [])
+    completed_schedules = user_info.get("recent_completed_schedules", [])
 
     now = datetime.now()
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
@@ -25,7 +25,7 @@ def build_messages(
     emotion_shifts_text = ""
     if emotion_shifts:
         emotion_shifts_text = "近期情绪转折: " + " | ".join(
-            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in emotion_shifts
+            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail}" for ev in emotion_shifts
         )
 
     anchors_text = ""
@@ -43,6 +43,20 @@ def build_messages(
         )
     else:
         schedules_text = "暂无日程"
+
+    # 已完成日程文本（仅供背景参考）
+    completed_text = ""
+    if completed_schedules:
+        completed_text = "已完成日程(最近5条, 仅供背景参考, 不要重复创建或编辑): " + ", ".join(
+            f"{sc.schedule_type}:{sc.title}({sc.scheduled_time.strftime('%m月%d日') if sc.scheduled_time else '无期'})" for sc in completed_schedules
+        )
+    else:
+        completed_text = "暂无已完成日程。"
+
+    # 唯一强约束：没有未完成日程时禁止编辑/删除
+    no_schedule_warning = ""
+    if not schedules:
+        no_schedule_warning = "\n⚠️ 当前用户没有任何未完成的日程记录。你不得输出任何 schedule_edits 或 schedule_deletes。如需操作日程，请在 follow_up_text 中温和询问用户（如“我好像没找到这个日程”），严禁自行编造标题。"
 
     system_prompt = f"""{time_hint}
 【角色】你是小元的后台分析助手，只输出结构化数据，不参与对话。
@@ -69,11 +83,13 @@ def build_messages(
 
 用户现有画像记录（部分，注意记录时间）：
 {anchors_text}
-5. 用户画像：若用户表达的是稳定的个人特质、价值观或长期习惯，可创建/更新 anchors。new_anchors 必须是对象数组，每项含 anchor_type, content, confidence(0~1，你的确信程度，不要轻易给高，否则会严重影响后面其他ai的工作)。
+5. 用户画像：若用户表达的是稳定的个人特质、价值观或长期习惯，可创建/更新 anchors。new_anchors 必须是对象数组，每项含 anchor_type, content, confidence(0~1，你的确信程度，不要轻易给高！不要轻易给高！不要轻易给高！否则会严重影响后面其他ai的工作！尤其是负面内容，你不能让后面的ai就专盯着用户的阴暗处)。
 
-用户现有日程记录如下：（如需编辑、删除，必须！必须！必须在下列日程中挑选准确title，不要被对话信息干扰）
-{schedules_text}
+用户现有未完成日程记录如下：（如需编辑、删除，必须！必须！必须在下列日程中挑选准确title，不要被对话信息干扰）
+{schedules_text}{no_schedule_warning}
+{completed_text}
 6. 日程创建：识别对话中任何表示未来时间节点的表达，立即创建日程。**一次可创建多个日程**，字段为 new_schedules（数组）。每个日程含 schedule_type (short_task/long_goal/countdown/anniversary/birthday)、title、description、scheduled_time（格式 YYYY-MM-DDTHH:MM 或 null）。若同一意图已存在则跳过。
+**已经存在的日程不要！不要！不要重复创建**
 7. 日程编辑：当用户要求修改现有日程（例如改时间、改名称），或认为某日程因理解错误而需要修正时，应输出 schedule_edits（数组）。**一次可编辑多个日程**，每项必须包含 **title**（当前日程标题，用于匹配），然后至少包含一个修改字段：new_title、new_description、new_scheduled_time、new_type、new_completed。如果用户说“任务完成了”，或某个倒数日已过、生日已过、纪念日已过，请将 new_completed 设为 true，而不是直接删除。如果用户明确要求删除，请走“日程删除”规则。
 8. 日程删除：当用户明确要删除某个日程（如指出你误记），或者某个任务已无意义时，可以输出 schedule_deletes（数组）。每项必须包含 **title**（当前日程标题，用于匹配）。**一次可删除多个日程**，请注意：系统会自动模糊匹配标题，但若你无法确定原标题，可留空并在 follow_up_text 中询问用户。
 9. 防重复：与最近1小时记录重复则不创建。
@@ -81,7 +97,7 @@ def build_messages(
 【日程编辑与删除的匹配说明（你必须理解）】
 - 后端会先将你输出的 title 与用户实际日程标题进行精确匹配。
 - 若精确匹配失败，会使用模糊匹配（相似度≥70%的最近似项）。
-- 因此，你输出的 title 应尽可能与用户原始日程标题一致（可以从对话中推断,但实际用名必须为现有日程有的）。若完全不确定，就不要填写 title，而是在 follow_up_text 中询问用户。
+- 因此，你输出的 title 应尽可能与用户原始日程标题一致。若完全不确定，就不要填写 title，而是在 follow_up_text 中询问用户。
 
 输出 JSON：
 {{
@@ -105,16 +121,7 @@ def build_messages(
 }}
 只输出 JSON。"""
 
-    messages = [{"role": "system", "content": system_prompt}]
-    for msg in reversed(recent_convs):
-        role = "user" if msg.role.value == "user" else "assistant"
-        messages.append({"role": role, "content": msg.content})
-    messages.append({"role": "user", "content": user_message})
-    messages.append({"role": "assistant", "content": "[同步处理中，请忽略]"})
-    messages.append({
-        "role": "system",
-        "content": "注意！给你聊天记录是让你了解上下文发生了什么，重点处理的内容应该是用户最近的消息。"
-    })
+    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}]
     return messages
 
 

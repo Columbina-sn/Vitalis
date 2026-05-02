@@ -18,7 +18,8 @@ async def get_user_full_info(
 ) -> Optional[Dict[str, Any]]:
     """
     获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
-    长期记忆（近21天锚点按置信度取前15、近2天摘要1条、14天前7天后日程不限条数）。
+    长期记忆（近21天锚点按置信度取前15、近7天摘要最多3条、一年前后未完成日程最多10条）、
+    最近5条已完成日程。
     """
     user = await db.get(User, user_id)
     if not user:
@@ -72,10 +73,10 @@ async def get_user_full_info(
     )
     snapshots = snapshots_result.scalars().all()
 
-    # 14天前7天后未完成的日程（不限条数）
+    # 一年前后未完成的日程（最多10条，优先取最近事件）
     now = datetime.now()
-    past_time = now - timedelta(days=14)
-    future_deadline = now + timedelta(days=7)
+    one_year_ago = now - timedelta(days=400)      # 已放宽至一年范围
+    one_year_ahead = now + timedelta(days=400)
     schedules_result = await db.execute(
         select(UserSchedule)
         .where(
@@ -83,12 +84,25 @@ async def get_user_full_info(
             UserSchedule.is_completed == False,
             or_(
                 UserSchedule.scheduled_time.is_(None),
-                (UserSchedule.scheduled_time >= past_time) & (UserSchedule.scheduled_time <= future_deadline)
+                (UserSchedule.scheduled_time >= one_year_ago) & (UserSchedule.scheduled_time <= one_year_ahead)
             )
         )
         .order_by(UserSchedule.scheduled_time.asc())
+        .limit(10)
     )
     upcoming_schedules = schedules_result.scalars().all()
+
+    # 最近5条已完成日程（按完成时间倒序）
+    completed_result = await db.execute(
+        select(UserSchedule)
+        .where(
+            UserSchedule.user_id == user_id,
+            UserSchedule.is_completed == True
+        )
+        .order_by(UserSchedule.updated_at.desc())
+        .limit(5)
+    )
+    recent_completed_schedules = completed_result.scalars().all()
 
     return {
         "status": status,
@@ -97,6 +111,7 @@ async def get_user_full_info(
         "anchors": anchors,
         "snapshots": snapshots,
         "upcoming_schedules": upcoming_schedules,
+        "recent_completed_schedules": recent_completed_schedules
     }
 
 

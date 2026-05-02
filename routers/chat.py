@@ -56,8 +56,8 @@ async def receive_user_message(
         user_message=req.message,
         user_info=user_info,
     )
-    # print(empathy_messages)
-    # print(productivity_messages)
+    print(empathy_messages)
+    print(productivity_messages)
 
     empathy_task = empathy_analog_ai(empathy_messages)
     prod_task = productivity_analog_ai(productivity_messages)
@@ -183,23 +183,23 @@ async def receive_user_message(
     if unmatched_edits:
         titles_edit = "“" + "”、“".join(unmatched_edits) + "”"
         if len(unmatched_edits) == 1:
-            edit_clause = f"刚才你想编辑的那个日程（{titles_edit}），我在你的列表里没找到完全一样名字的"
+            edit_clause = f"编辑那个日程（{titles_edit}），可在你的列表里没找到完全一样名字的"
         else:
-            edit_clause = f"你提到的那几个日程（{titles_edit}），我没能在你已有的日程里对上号"
+            edit_clause = f"编辑的这几个日程（{titles_edit}），我没能在你已有的日程里对上号"
         inquiry_parts.append(edit_clause + "，能稍微再给我一点提示吗？比如大概是什么时候加的、或者里面写了什么字～")
 
     if unmatched_deletes:
         titles_delete = "“" + "”、“".join(unmatched_deletes) + "”"
         if len(unmatched_deletes) == 1:
-            del_clause = f"你说想删除的那个日程（{titles_delete}），我试着找了但没定位到它"
+            del_clause = f"删除那个日程（{titles_delete}），我试着找了但没定位到它"
         else:
-            del_clause = f"你提到的几个想要删除的日程（{titles_delete}），我没能在你的日程里找到"
+            del_clause = f"删除的这几个日程（{titles_delete}），我没能在你的日程里找到"
         inquiry_parts.append(del_clause + "，可以告诉我它们大概的名字或者内容吗？我再帮你核对一下～")
 
     if inquiry_parts:
-        follow_up = (follow_up + "\n\n" + "🌱 另外，" + "；".join(inquiry_parts)).strip()
-
-    if follow_up:
+        follow_up = ("🌱 额……小元试图" + "；".join(inquiry_parts)).strip()
+        final_reply = final_reply.rstrip() + "\n\n" + follow_up
+    elif follow_up:
         final_reply = final_reply.rstrip() + "\n\nOS：" + follow_up
 
     # 11. 处理改名

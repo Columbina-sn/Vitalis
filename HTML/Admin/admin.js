@@ -1,9 +1,10 @@
 // HTML\Admin\admin.js
 // 管理后台核心脚本（传统分页版，乐观更新 + 手动刷新）
+// 重构版：按接口/功能模块拆分，保持全部原始逻辑不变
 (function(){
   "use strict";
 
-  // ==================== 1. 背景动画 ====================
+  // ======================== 1. 背景动画 ========================
   const colorPalette = ["#FFF3E0", "#FFE8CC", "#FFDEB9", "#FFD4A6", "#FCCF9B", "#D4E8E8", "#C2DFE8", "#B0D6E8", "#B8D4F0", "#C8E0F5"];
   const bgDivs = document.querySelectorAll('.bg');
 
@@ -29,7 +30,7 @@
   }
   initBackground();
 
-  // ==================== 2. DOM 元素 ====================
+  // ======================== 2. DOM 元素 ========================
   const table = document.getElementById('adminDataTable');
   const prevBtn = document.getElementById('prevPageBtn');
   const nextBtn = document.getElementById('nextPageBtn');
@@ -40,7 +41,7 @@
   const tabBtns = document.querySelectorAll('.tab-btn');
   const refreshBtn = document.getElementById('refreshDataBtn');
 
-  // 右侧统计
+  // 右侧统计卡片
   const statTotalUsers = document.getElementById('statTotalUsers');
   const statTodayConv = document.getElementById('statTodayConversations');
   const statTotalComments = document.getElementById('statTotalComments');
@@ -55,7 +56,7 @@
   const logStartDate = document.getElementById('logStartDate');
   const logEndDate = document.getElementById('logEndDate');
   const inviteResultList = document.getElementById('inviteResultList');
-  const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn')
+  const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn');
 
   // 模态框
   const adminLogsModal = document.getElementById('adminLogsModal');
@@ -69,18 +70,19 @@
   const confirmMessage = document.getElementById('confirmMessage');
   const confirmYesBtn = document.getElementById('confirmYesBtn');
   const confirmNoBtn = document.getElementById('confirmNoBtn');
+  const dailySummaryStatusText = document.getElementById('dailySummaryStatusText');
 
   // 退出
   const adminLogoutBtn = document.getElementById('adminLogoutBtn');
 
-  // ==================== 3. 全局状态 ====================
+  // ======================== 3. 全局状态 ========================
   let currentTab = 'users';
   let currentPage = 1;
   let totalPages = 1;
   const PAGE_SIZE = 20;
   let currentDataList = [];          // 当前页全部数据
   let currentTotal = 0;             // 当前标签页总记录数（供乐观更新使用）
-  let loadDataSeq = 0;              // 防止异步竞态（手动刷新时仍有效）
+  let loadDataSeq = 0;              // 防止异步竞态
 
   // 日志弹窗游标状态
   let logsCursor = null;
@@ -93,8 +95,7 @@
   let isDeleting = false;
   let isSaving = false;
 
-  // ==================== 4. 工具函数 ====================
-  // 格式化时间到秒
+  // ======================== 4. 工具函数 ========================
   function formatDateTime(isoString) {
     if (!isoString) return '-';
     const d = new Date(isoString);
@@ -113,7 +114,6 @@
     }
   }
 
-  // 脱敏手机号
   function maskPhone(phone) {
     if (phone && phone.length === 11) {
       return phone.substring(0,3) + '****' + phone.substring(7);
@@ -121,7 +121,6 @@
     return phone || '';
   }
 
-  // 操作按钮 HTML（编辑+删除）
   function actionButtonsHtml() {
     return `<span class="action-icons">
       <i class="fas fa-pen action-icon" title="编辑"></i>
@@ -129,7 +128,6 @@
     </span>`;
   }
 
-  // 更新分页控件（基于 currentTotal 和 currentPage）
   function updatePaginationInfo() {
     totalPages = Math.ceil(currentTotal / PAGE_SIZE) || 1;
     pageInfoSpan.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
@@ -139,244 +137,320 @@
     pageJumpInput.max = totalPages;
   }
 
-  // ==================== 5. 初始化 ====================
-  async function init() {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      window.location.href = '/HTML/Index/index.html';
+  // ======================== 5. 统计数据模块 ========================
+  // ---------- 5.1 获取统计数据 (GET /admin/stats) ----------
+  async function fetchStats() {
+    try {
+      const stats = await http({ method: 'GET', url: '/admin/stats', needAuth: true });
+      statTotalUsers.textContent = stats.total_users ?? '-';
+      statTodayConv.textContent = stats.today_conversations ?? '-';
+      statTotalComments.textContent = stats.total_comments ?? '-';
+      statValidInvites.textContent = stats.active_invite_codes ?? '-';
+    } catch (error) {
+      statTotalUsers.textContent = '错误';
+      statTodayConv.textContent = '错误';
+      statTotalComments.textContent = '错误';
+      statValidInvites.textContent = '错误';
+      showToast('获取统计数据失败');
+    }
+  }
+
+  // ======================== 6. 用户管理模块 ========================
+  // ---------- 6.1 获取用户列表 (GET /admin/users) ----------
+  async function loadUsers() {
+    return loadDataForTab('users');
+  }
+
+  // ---------- 6.2 编辑用户 (PUT /admin/users/:id) ----------
+  async function updateUser(id, data) {
+    await http({ method: 'PUT', url: `/admin/users/${id}`, data, needAuth: true });
+  }
+
+  // ---------- 6.3 删除用户 (DELETE /admin/users/:id) ----------
+  async function deleteUser(id) {
+    await http({ method: 'DELETE', url: `/admin/users/${id}`, needAuth: true });
+  }
+
+  // ======================== 7. 评论管理模块 ========================
+  // ---------- 7.1 获取评论列表 (GET /admin/comments) ----------
+  async function loadComments() {
+    return loadDataForTab('comments');
+  }
+
+  // ---------- 7.2 编辑评论 (PUT /admin/comments/:id) ----------
+  async function updateComment(id, data) {
+    await http({ method: 'PUT', url: `/admin/comments/${id}`, data, needAuth: true });
+  }
+
+  // ---------- 7.3 删除评论 (DELETE /admin/comments/:id) ----------
+  async function deleteComment(id) {
+    await http({ method: 'DELETE', url: `/admin/comments/${id}`, needAuth: true });
+  }
+
+  // ======================== 8. 邀请码管理模块 ========================
+  // ---------- 8.1 获取邀请码列表 (GET /admin/invite-codes) ----------
+  async function loadInvites() {
+    return loadDataForTab('invites');
+  }
+
+  // ---------- 8.2 编辑邀请码 (PUT /admin/invite-codes/:id) ----------
+  async function updateInviteCode(id, data) {
+    await http({ method: 'PUT', url: `/admin/invite-codes/${id}`, data, needAuth: true });
+  }
+
+  // ---------- 8.3 删除邀请码 (DELETE /admin/invite-codes/:id) ----------
+  async function deleteInviteCode(id) {
+    await http({ method: 'DELETE', url: `/admin/invite-codes/${id}`, needAuth: true });
+  }
+
+  // ---------- 8.4 批量生成邀请码 (POST /admin/invite-codes/batch) ----------
+  async function generateInvites() {
+    const countInput = inviteCountInput;
+    const daysInput = inviteExpiryDaysInput;
+    let count = parseInt(countInput.value, 10);
+    let days = parseInt(daysInput.value, 10);
+    if (isNaN(count) || count < 1) count = 1;
+    if (count > 100) count = 100;
+    countInput.value = count;
+    if (isNaN(days) || days < 1) days = 1;
+    if (days > 7) days = 7;
+    daysInput.value = days;
+    try {
+      const response = await http({
+        method: 'POST',
+        url: '/admin/invite-codes/batch',
+        data: { count, expiry_days: days },
+        needAuth: true
+      });
+      renderInviteCodes(response.codes, response.expiry_time);
+      showToast(`成功生成 ${response.codes.length} 个邀请码`);
+      // 生成后重新拉取统计数据，保证数字准确
+      await fetchStats();
+    } catch (error) {
+      showToast(error.message || '生成邀请码失败');
+    }
+  }
+
+  function renderInviteCodes(codes, expiryTime) {
+    if (!inviteResultList) return;
+    inviteResultList.innerHTML = '';
+    if (!codes || codes.length === 0) {
+      inviteResultList.innerHTML = '<div style="color:#a5835e;text-align:center;">暂无生成的邀请码</div>';
       return;
     }
-    checkDailySummaryStatus()
-    // 默认加载用户列表
-    await switchTab('users');
-    await fetchStats();
-    bindEvents();
-    setDefaultDates();
+    codes.forEach(code => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'invite-code-item';
+      const codeSpan = document.createElement('span');
+      codeSpan.textContent = code;
+      codeSpan.style.fontFamily = 'monospace';
+      codeSpan.style.fontWeight = '600';
+      const copyIcon = document.createElement('i');
+      copyIcon.className = 'fas fa-copy copy-invite';
+      copyIcon.title = '点击复制';
+      copyIcon.addEventListener('click', () => copyInviteCode(code));
+      itemDiv.appendChild(codeSpan);
+      itemDiv.appendChild(copyIcon);
+      inviteResultList.appendChild(itemDiv);
+    });
+    const expiryNote = document.createElement('div');
+    expiryNote.style.cssText = 'font-size:0.75rem;color:#a5835e;margin-top:8px;text-align:right;';
+    expiryNote.textContent = `过期时间：${formatDate(expiryTime)}`;
+    inviteResultList.appendChild(expiryNote);
   }
 
-  function setDefaultDates() {
-    const today = new Date().toISOString().split('T')[0];
-    if (logStartDate) logStartDate.value = today;
-    if (logEndDate) logEndDate.value = today;
+  async function copyInviteCode(code) {
+    try {
+      await navigator.clipboard.writeText(code);
+      showToast(`邀请码 ${code} 已复制`, 2000);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast(`邀请码 ${code} 已复制`, 2000);
+    }
   }
 
-  // ==================== 6. 事件绑定 ====================
-  function bindEvents() {
-    // 标签页切换
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const tab = btn.dataset.tab;
-        if (!tab || tab === currentTab) return;
-        await switchTab(tab);
-      });
-    });
+  // ======================== 9. 操作日志模块 ========================
+  // ---------- 9.1 获取操作日志列表 (GET /admin/logs-all) ----------
+  async function loadLogs() {
+    return loadDataForTab('logs');
+  }
 
-    // 手动刷新
-    refreshBtn.addEventListener('click', () => {
-      loadData();
-    });
+  // ---------- 9.2 删除单条操作日志 (DELETE /admin/logs/:id) ----------
+  async function deleteLog(id) {
+    await http({ method: 'DELETE', url: `/admin/logs/${id}`, needAuth: true });
+  }
 
-    // 分页按钮
-    prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
-    nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
-    pageJumpBtn.addEventListener('click', () => {
-      const page = parseInt(pageJumpInput.value, 10);
-      if (isNaN(page) || page < 1 || page > totalPages) {
-        showToast(`页码必须在 1 ~ ${totalPages} 之间`);
-        return;
+  // ---------- 9.3 右侧操作日志查询弹窗 (GET /admin/logs) ----------
+  function closeAdminLogsModal() {
+    adminLogsModal.style.display = 'none';
+    adminLogsMessageList.innerHTML = '';
+    adminLogsNoDataMsg.style.display = 'none';
+    adminLogsLoadingMsg.style.display = 'none';
+    logsCursor = null;
+    logsHasMore = true;
+    logsIsLoading = false;
+  }
+
+  async function queryAdminLogs() {
+    if (logStartDate.value > logEndDate.value) {
+      showToast('开始日期不能大于结束日期');
+      return;
+    }
+    logsStartDate = logStartDate.value;
+    logsEndDate = logEndDate.value;
+    if (!logsStartDate || !logsEndDate) {
+      showToast('请选择日期范围');
+      return;
+    }
+    adminLogsDateRangeText.textContent = `${logsStartDate} ~ ${logsEndDate}`;
+    adminLogsModal.style.display = 'flex';
+    adminLogsMessageList.innerHTML = '';
+    adminLogsNoDataMsg.style.display = 'none';
+    adminLogsLoadingMsg.style.display = 'flex';
+    logsCursor = null;
+    logsHasMore = true;
+    await loadAdminLogs(true);
+  }
+
+  async function loadAdminLogs(reset = false) {
+    if (logsIsLoading) return;
+    if (!reset && !logsHasMore) return;
+    logsIsLoading = true;
+    adminLogsLoadingMsg.style.display = 'flex';
+    adminLogsNoDataMsg.style.display = 'none';
+    try {
+      const params = { start_date: logsStartDate, end_date: logsEndDate, page_size: 20 };
+      if (!reset && logsCursor) {
+        params.cursor_created_at = logsCursor.created_at;
+        params.cursor_id = logsCursor.id;
       }
-      goToPage(page);
-    });
+      const data = await http({ method: 'GET', url: '/admin/logs', params, needAuth: true });
+      const list = data.list || [];
+      const nextCursor = data.next_cursor || null;
+      logsHasMore = !!nextCursor;
+      logsCursor = nextCursor;
+      renderAdminLogs(list, !reset);
+      if (list.length === 0 && reset) adminLogsNoDataMsg.style.display = 'block';
+    } catch (err) {
+      showToast('加载日志失败: ' + err.message);
+      if (reset) adminLogsNoDataMsg.style.display = 'block';
+    } finally {
+      logsIsLoading = false;
+      adminLogsLoadingMsg.style.display = 'none';
+    }
+  }
 
-    // 退出登录
-    adminLogoutBtn.addEventListener('click', () => {
-      showConfirm('确定退出管理后台？', () => {
-        showToast('已退出登录，即将跳转...', 1500);
-        localStorage.removeItem('access_token');
+  function renderAdminLogs(logs, append = false) {
+    if (!append) adminLogsMessageList.innerHTML = '';
+    if (!logs || logs.length === 0) return;
+    const fragment = document.createDocumentFragment();
+    logs.forEach(log => {
+      const item = document.createElement('div');
+      item.className = 'admin-log-item';
+      const headerDiv = document.createElement('div');
+      headerDiv.style.display = 'flex';
+      headerDiv.style.justifyContent = 'space-between';
+      headerDiv.style.marginBottom = '8px';
+      const phone = log.admin_phone || '未知';
+      const maskedPhone = phone.length === 11 ? phone.substring(0,3) + '****' + phone.substring(7) : '***';
+      headerDiv.innerHTML = `<span style="font-weight:600;color:#7a4e2e;"><i class="fas fa-user-shield" style="margin-right:4px;color:#b87a48;"></i>${maskedPhone}</span><span style="background:#f0dfbc;padding:2px 12px;border-radius:30px;font-size:0.75rem;font-weight:600;color:#7a4e2e;">${log.action_type}</span>`;
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'admin-log-time';
+      timeDiv.innerHTML = `<i class="far fa-clock"></i> ${formatDateTime(log.created_at)}`;
+      const remarkDiv = document.createElement('div');
+      remarkDiv.className = 'admin-log-remark';
+      remarkDiv.textContent = log.remark || '无备注';
+      item.appendChild(headerDiv);
+      item.appendChild(timeDiv);
+      item.appendChild(remarkDiv);
+      fragment.appendChild(item);
+    });
+    adminLogsMessageList.appendChild(fragment);
+  }
+
+  function bindAdminLogsScroll() {
+    adminLogsMessageList.addEventListener('scroll', () => {
+      const container = adminLogsMessageList;
+      const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (scrollBottom < 30 && !logsIsLoading && logsHasMore) {
+        loadAdminLogs(false);
+      }
+    });
+  }
+
+  // ======================== 10. 安全控制模块 ========================
+  // ---------- 10.1 关闭管理员登录入口 (POST /admin/system-config/disable) ----------
+  async function toggleAdminLogin() {
+    const btn = toggleAdminLoginBtn;
+    if (!btn || btn.disabled) return;
+    showConfirm('⚠️ 确定要关闭管理员登录入口吗？', async () => {
+      try {
+        await http({
+          method: 'POST',
+          url: '/admin/system-config/disable',
+          needAuth: true
+        });
+        showToast('管理员登录入口已关闭，即将退出...', 2500);
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-lock"></i> 已关闭';
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
         setTimeout(() => {
+          localStorage.removeItem('access_token');
           window.location.href = '/HTML/Index/index.html';
-        }, 1500);
-      });
+        }, 2500);
+      } catch (error) {
+        showToast('操作失败：' + error.message, 3000);
+      }
     });
+  }
 
-    // 右侧功能区
-    generateInvitesBtn.addEventListener('click', generateInvites);
-    toggleAdminLoginBtn.addEventListener('click', toggleAdminLogin);
-    queryLogsBtn.addEventListener('click', queryAdminLogs);
-    closeAdminLogsModalBtn.addEventListener('click', closeAdminLogsModal);
-    adminLogsModal.addEventListener('click', (e) => {
-      if (e.target === adminLogsModal) closeAdminLogsModal();
-    });
-    bindAdminLogsScroll();
+  // ======================== 11. 每日摘要模块 ========================
+  // ---------- 11.1 查询今日是否已触发 (GET /admin/daily-summary/status) ----------
+  async function checkDailySummaryStatus() {
+      try {
+          const data = await window.http({ method: 'GET', url: '/admin/daily-summary/status', needAuth: true });
+          if (data.alreadyTriggered) {
+              triggerDailySummaryBtn.disabled = true;
+              triggerDailySummaryBtn.style.opacity = '0.6';
+              dailySummaryStatusText.textContent = '📅 今日已执行';
+          } else {
+              triggerDailySummaryBtn.disabled = false;
+              triggerDailySummaryBtn.style.opacity = '1';
+              dailySummaryStatusText.textContent = '';
+          }
+      } catch (e) {
+          // 读取失败不影响，按钮保持可用
+      }
+  }
 
-    triggerDailySummaryBtn.addEventListener('click', async () => {
-        if (triggerDailySummaryBtn.disabled) return;
-        try {
-            await window.http({ method: 'POST', url: '/admin/daily-summary/trigger', needAuth: true });
-            window.showToast('每日摘要生成已启动');
+  // ---------- 11.2 手动触发每日摘要生成 (POST /admin/daily-summary/trigger) ----------
+  async function triggerDailySummary() {
+    if (triggerDailySummaryBtn.disabled) return;
+    try {
+        await window.http({ method: 'POST', url: '/admin/daily-summary/trigger', needAuth: true });
+        window.showToast('每日摘要生成已启动');
+        triggerDailySummaryBtn.disabled = true;
+        triggerDailySummaryBtn.style.opacity = '0.6';
+        dailySummaryStatusText.textContent = '📅 今日已执行';
+    } catch (err) {
+        if (err.message.includes('已经手动触发过')) {
             triggerDailySummaryBtn.disabled = true;
             triggerDailySummaryBtn.style.opacity = '0.6';
             dailySummaryStatusText.textContent = '📅 今日已执行';
-        } catch (err) {
-            if (err.message.includes('已经手动触发过')) {
-                triggerDailySummaryBtn.disabled = true;
-                triggerDailySummaryBtn.style.opacity = '0.6';
-                dailySummaryStatusText.textContent = '📅 今日已执行';
-            } else {
-                window.showToast('触发失败：' + err.message);
-            }
-        }
-    });
-
-    // 日期联动
-    logStartDate.addEventListener('change', function () {
-      if (logStartDate.value) {
-        logEndDate.min = logStartDate.value;
-        if (logEndDate.value && logEndDate.value < logStartDate.value) {
-          logEndDate.value = logStartDate.value;
-        }
-      } else {
-        logEndDate.min = '';
-      }
-    });
-    logEndDate.addEventListener('change', function () {
-      if (logEndDate.value) {
-        logStartDate.max = logEndDate.value;
-        if (logStartDate.value && logStartDate.value > logEndDate.value) {
-          logStartDate.value = logEndDate.value;
-        }
-      } else {
-        logStartDate.max = '';
-      }
-    });
-
-    // 输入限制
-    inviteCountInput.addEventListener('input', function() {
-      let val = parseInt(this.value, 10);
-      if (isNaN(val)) { this.value = ''; return; }
-      if (val < 1) this.value = 1;
-      if (val > 100) this.value = 100;
-    });
-    inviteExpiryDaysInput.addEventListener('input', function() {
-      let val = parseInt(this.value, 10);
-      if (isNaN(val)) { this.value = ''; return; }
-      if (val < 1) this.value = 1;
-      if (val > 7) this.value = 7;
-    });
-
-    // 关闭确认框
-    confirmNoBtn.addEventListener('click', closeConfirm);
-
-    // 表格委托：手机号切换、编辑、删除
-    document.getElementById('adminTableWrapper').addEventListener('click', (e) => {
-      const phoneToggle = e.target.closest('.phone-toggle');
-      if (phoneToggle) {
-        const full = phoneToggle.dataset.full;
-        if (phoneToggle.textContent === full) {
-          phoneToggle.textContent = maskPhone(full);
         } else {
-          phoneToggle.textContent = full;
+            window.showToast('触发失败：' + err.message);
         }
-      }
-
-      const editBtn = e.target.closest('.fa-pen');
-      const delBtn = e.target.closest('.fa-trash-alt');
-      
-      if (editBtn) {
-          const row = e.target.closest('tr');
-          const id = row?.dataset.recordId;
-          if (id) {
-              const item = currentDataList.find(d => d.id == id);
-              if (item) openEditModal(item);
-          }
-      }
-      
-      if (delBtn) {
-          const row = e.target.closest('tr');
-          const id = row?.dataset.recordId;
-          if (id) {
-              const item = currentDataList.find(d => d.id == id);
-              if (item) handleDelete(item);
-          }
-      }
-    });
-
-    // 保存按钮监听（编辑保存，乐观更新）
-    document.getElementById('saveEditBtn').addEventListener('click', async () => {
-        if (isSaving) return;
-        const type = editModal.dataset.editType;
-        const id = editModal.dataset.editId;
-        if (!type || !id) return;
-
-        let url, data, updatedItem = null;
-
-        if (type === 'users') {
-            url = `/admin/users/${id}`;
-            data = {
-                phone: document.getElementById('editUserPhone').value,
-                nickname: document.getElementById('editUserNickname').value,
-                can_login: document.getElementById('editUserCanLogin').checked
-            };
-            const item = currentDataList.find(d => d.id == id);
-            if (item) {
-                updatedItem = { ...item, ...data };
-            }
-        } else if (type === 'comments') {
-            url = `/admin/comments/${id}`;
-            data = {
-                content: document.getElementById('editCommentContent').value,
-                replied: document.getElementById('editCommentReplied').checked
-            };
-            const item = currentDataList.find(d => d.id == id);
-            if (item) {
-                updatedItem = { ...item, ...data };
-            }
-        } else if (type === 'invites') {
-            url = `/admin/invite-codes/${id}`;
-            data = {
-                code: document.getElementById('editInviteCode').value,
-                expiry_time: new Date(document.getElementById('editInviteExpiry').value).toISOString()
-            };
-            const item = currentDataList.find(d => d.id == id);
-            if (item) {
-                updatedItem = { ...item, ...data };
-            }
-        } else {
-            return;
-        }
-
-        isSaving = true;
-        try {
-            await http({ method: 'PUT', url, data, needAuth: true });
-            showToast('保存成功');
-            document.getElementById('editModal').style.display = 'none';
-
-            // 乐观更新本地数据
-            if (updatedItem) {
-                const index = currentDataList.findIndex(d => d.id == id);
-                if (index !== -1) {
-                    currentDataList[index] = updatedItem;
-                    renderTable(currentDataList, currentTotal);
-                    updatePaginationInfo();
-                }
-            }
-        } catch (err) {
-            showToast('保存失败: ' + err.message);
-        } finally {
-            isSaving = false;
-        }
-    });
-
-    // 取消编辑按钮
-    document.getElementById('cancelEditBtn').addEventListener('click', () => {
-        document.getElementById('editModal').style.display = 'none';
-    });
-    document.getElementById('closeEditModal').addEventListener('click', () => {
-        document.getElementById('editModal').style.display = 'none';
-    });
+    }
   }
 
-  // ==================== 7. 标签页切换与数据加载 ====================
+  // ======================== 12. 通用数据加载与表格渲染 ========================
+  // ---------- 12.1 标签页切换与分页 ----------
   async function switchTab(tab) {
     currentTab = tab;
     currentPage = 1;
@@ -385,24 +459,27 @@
     await loadData();
   }
 
+  async function loadDataForTab(tab) {
+    let url = '';
+    switch (tab) {
+      case 'users': url = '/admin/users'; break;
+      case 'comments': url = '/admin/comments'; break;
+      case 'invites': url = '/admin/invite-codes'; break;
+      case 'logs': url = '/admin/logs-all'; break;
+      default: return;
+    }
+    return await http({
+      method: 'GET',
+      url,
+      params: { page: currentPage, page_size: PAGE_SIZE },
+      needAuth: true
+    });
+  }
+
   async function loadData() {
     const seq = ++loadDataSeq;
     try {
-      let url = '';
-      switch (currentTab) {
-        case 'users': url = '/admin/users'; break;
-        case 'comments': url = '/admin/comments'; break;
-        case 'invites': url = '/admin/invite-codes'; break;
-        case 'logs': url = '/admin/logs-all'; break;
-        default: return;
-      }
-      const data = await http({
-        method: 'GET',
-        url,
-        params: { page: currentPage, page_size: PAGE_SIZE },
-        needAuth: true
-      });
-
+      const data = await loadDataForTab(currentTab);
       if (seq !== loadDataSeq) return;
 
       const list = data.list || [];
@@ -432,14 +509,13 @@
     loadData();
   }
 
-  // ==================== 8. 表格渲染 ====================
+  // ---------- 12.2 表格渲染 ----------
   function renderTable(dataList, total) {
     currentDataList = dataList;
     table.innerHTML = '';
 
     const configs = {
       users: {
-          // 已移除“事件数”列
           headers: ['手机号', '昵称', '邀请码', '注册时间', '心理和谐', '对话数', '登录状态', '操作'],
           widths: ['15%', '15%', '12%', '17%', '9%', '8%', '9%', '8%'],
           hasActions: true,
@@ -548,7 +624,8 @@
     pageCountInfo.textContent = total < 0 ? '共 … 条' : `共 ${total} 条`;
   }
 
-  // ==================== 编辑与删除功能（乐观更新） ====================
+  // ======================== 13. 编辑与删除通用逻辑 ========================
+  // ---------- 13.1 打开编辑模态框 ----------
   function openEditModal(item) {
       document.getElementById('editUserFields').style.display = 'none';
       document.getElementById('editCommentFields').style.display = 'none';
@@ -580,6 +657,7 @@
       document.getElementById('editModal').style.display = 'flex';
   }
 
+  // ---------- 13.2 删除操作 ----------
   function handleDelete(item) {
       if (isDeleting) {
           showToast('删除操作正在进行中，请稍后', 1500);
@@ -615,19 +693,7 @@
               await http({ method: 'DELETE', url, needAuth: true });
               showToast('删除成功');
 
-              // 乐观更新右侧统计卡片
-              const now = new Date();
-              if (currentTab === 'users') {
-                  statTotalUsers.textContent = Math.max(0, (parseInt(statTotalUsers.textContent) || 0) - 1);
-              } else if (currentTab === 'comments') {
-                  statTotalComments.textContent = Math.max(0, (parseInt(statTotalComments.textContent) || 0) - 1);
-              } else if (currentTab === 'invites') {
-                  const expiry = item.expiry_time ? new Date(item.expiry_time) : null;
-                  if (expiry && expiry >= now) {
-                      statValidInvites.textContent = Math.max(0, (parseInt(statValidInvites.textContent) || 0) - 1);
-                  }
-              }
-
+              // 乐观更新本地列表数据
               const idx = currentDataList.findIndex(d => d.id == item.id);
               if (idx !== -1) {
                   currentDataList.splice(idx, 1);
@@ -636,11 +702,14 @@
 
               if (currentDataList.length === 0 && currentPage > 1) {
                   currentPage--;
-                  loadData();
+                  await loadData();
               } else {
                   renderTable(currentDataList, currentTotal);
                   updatePaginationInfo();
               }
+
+              // 删除后重新获取统计数据
+              await fetchStats();
           } catch (err) {
               showToast('删除失败: ' + err.message);
           } finally {
@@ -649,235 +718,72 @@
       });
   }
 
-  // ==================== 9. 统计、邀请码、安全控制 ====================
-  async function fetchStats() {
+  // ---------- 13.3 编辑保存处理 ----------
+  async function handleEditSave() {
+    if (isSaving) return;
+    const type = editModal.dataset.editType;
+    const id = editModal.dataset.editId;
+    if (!type || !id) return;
+
+    let data, updatedItem = null;
+
+    if (type === 'users') {
+        data = {
+            phone: document.getElementById('editUserPhone').value,
+            nickname: document.getElementById('editUserNickname').value,
+            can_login: document.getElementById('editUserCanLogin').checked
+        };
+        const item = currentDataList.find(d => d.id == id);
+        if (item) updatedItem = { ...item, ...data };
+    } else if (type === 'comments') {
+        data = {
+            content: document.getElementById('editCommentContent').value,
+            replied: document.getElementById('editCommentReplied').checked
+        };
+        const item = currentDataList.find(d => d.id == id);
+        if (item) updatedItem = { ...item, ...data };
+    } else if (type === 'invites') {
+        data = {
+            code: document.getElementById('editInviteCode').value,
+            expiry_time: new Date(document.getElementById('editInviteExpiry').value).toISOString()
+        };
+        const item = currentDataList.find(d => d.id == id);
+        if (item) updatedItem = { ...item, ...data };
+    } else {
+        return;
+    }
+
+    isSaving = true;
     try {
-      const stats = await http({ method: 'GET', url: '/admin/stats', needAuth: true });
-      statTotalUsers.textContent = stats.total_users ?? '-';
-      statTodayConv.textContent = stats.today_conversations ?? '-';
-      statTotalComments.textContent = stats.total_comments ?? '-';
-      statValidInvites.textContent = stats.active_invite_codes ?? '-';
-    } catch (error) {
-      statTotalUsers.textContent = '错误';
-      statTodayConv.textContent = '错误';
-      statTotalComments.textContent = '错误';
-      statValidInvites.textContent = '错误';
-      showToast('获取统计数据失败');
-    }
-  }
+        if (type === 'users') {
+            await updateUser(id, data);
+        } else if (type === 'comments') {
+            await updateComment(id, data);
+        } else if (type === 'invites') {
+            await updateInviteCode(id, data);
+        }
+        showToast('保存成功');
+        document.getElementById('editModal').style.display = 'none';
 
-  async function generateInvites() {
-    const countInput = inviteCountInput;
-    const daysInput = inviteExpiryDaysInput;
-    let count = parseInt(countInput.value, 10);
-    let days = parseInt(daysInput.value, 10);
-    if (isNaN(count) || count < 1) count = 1;
-    if (count > 100) count = 100;
-    countInput.value = count;
-    if (isNaN(days) || days < 1) days = 1;
-    if (days > 7) days = 7;
-    daysInput.value = days;
-    try {
-      const response = await http({
-        method: 'POST',
-        url: '/admin/invite-codes/batch',
-        data: { count, expiry_days: days },
-        needAuth: true
-      });
-      renderInviteCodes(response.codes, response.expiry_time);
-      showToast(`成功生成 ${response.codes.length} 个邀请码`);
-      const countNum = response.codes.length || 0;
-      statValidInvites.textContent = (parseInt(statValidInvites.textContent) || 0) + countNum;
-    } catch (error) {
-      showToast(error.message || '生成邀请码失败');
-    }
-  }
+        if (updatedItem) {
+            const index = currentDataList.findIndex(d => d.id == id);
+            if (index !== -1) {
+                currentDataList[index] = updatedItem;
+                renderTable(currentDataList, currentTotal);
+                updatePaginationInfo();
+            }
+        }
 
-  function renderInviteCodes(codes, expiryTime) {
-    if (!inviteResultList) return;
-    inviteResultList.innerHTML = '';
-    if (!codes || codes.length === 0) {
-      inviteResultList.innerHTML = '<div style="color:#a5835e;text-align:center;">暂无生成的邀请码</div>';
-      return;
-    }
-    codes.forEach(code => {
-      const itemDiv = document.createElement('div');
-      itemDiv.className = 'invite-code-item';
-      const codeSpan = document.createElement('span');
-      codeSpan.textContent = code;
-      codeSpan.style.fontFamily = 'monospace';
-      codeSpan.style.fontWeight = '600';
-      const copyIcon = document.createElement('i');
-      copyIcon.className = 'fas fa-copy copy-invite';
-      copyIcon.title = '点击复制';
-      copyIcon.addEventListener('click', () => copyInviteCode(code));
-      itemDiv.appendChild(codeSpan);
-      itemDiv.appendChild(copyIcon);
-      inviteResultList.appendChild(itemDiv);
-    });
-    const expiryNote = document.createElement('div');
-    expiryNote.style.cssText = 'font-size:0.75rem;color:#a5835e;margin-top:8px;text-align:right;';
-    expiryNote.textContent = `过期时间：${formatDate(expiryTime)}`;
-    inviteResultList.appendChild(expiryNote);
-  }
-
-  async function copyInviteCode(code) {
-    try {
-      await navigator.clipboard.writeText(code);
-      showToast(`邀请码 ${code} 已复制`, 2000);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = code;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      showToast(`邀请码 ${code} 已复制`, 2000);
-    }
-  }
-
-  async function toggleAdminLogin() {
-    const btn = toggleAdminLoginBtn;
-    if (!btn || btn.disabled) return;
-    showConfirm('⚠️ 确定要关闭管理员登录入口吗？', async () => {
-      try {
-        await http({
-          method: 'POST',
-          url: '/admin/system-config/disable',
-          needAuth: true
-        });
-        showToast('管理员登录入口已关闭，即将退出...', 2500);
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-lock"></i> 已关闭';
-        btn.style.opacity = '0.6';
-        btn.style.cursor = 'not-allowed';
-        setTimeout(() => {
-          localStorage.removeItem('access_token');
-          window.location.href = '/HTML/Index/index.html';
-        }, 2500);
-      } catch (error) {
-        showToast('操作失败：' + error.message, 3000);
-      }
-    });
-  }
-
-  // ==================== 10. 操作日志弹窗（日期范围 + 游标分页） ====================
-  function closeAdminLogsModal() {
-    adminLogsModal.style.display = 'none';
-    adminLogsMessageList.innerHTML = '';
-    adminLogsNoDataMsg.style.display = 'none';
-    adminLogsLoadingMsg.style.display = 'none';
-    logsCursor = null;
-    logsHasMore = true;
-    logsIsLoading = false;
-  }
-
-  async function queryAdminLogs() {
-    if (logStartDate.value > logEndDate.value) {
-      showToast('开始日期不能大于结束日期');
-      return;
-    }
-    logsStartDate = logStartDate.value;
-    logsEndDate = logEndDate.value;
-    if (!logsStartDate || !logsEndDate) {
-      showToast('请选择日期范围');
-      return;
-    }
-    adminLogsDateRangeText.textContent = `${logsStartDate} ~ ${logsEndDate}`;
-    adminLogsModal.style.display = 'flex';
-    adminLogsMessageList.innerHTML = '';
-    adminLogsNoDataMsg.style.display = 'none';
-    adminLogsLoadingMsg.style.display = 'flex';
-    logsCursor = null;
-    logsHasMore = true;
-    await loadAdminLogs(true);
-  }
-
-  async function loadAdminLogs(reset = false) {
-    if (logsIsLoading) return;
-    if (!reset && !logsHasMore) return;
-    logsIsLoading = true;
-    adminLogsLoadingMsg.style.display = 'flex';
-    adminLogsNoDataMsg.style.display = 'none';
-    try {
-      const params = { start_date: logsStartDate, end_date: logsEndDate, page_size: 20 };
-      if (!reset && logsCursor) {
-        params.cursor_created_at = logsCursor.created_at;
-        params.cursor_id = logsCursor.id;
-      }
-      const data = await http({ method: 'GET', url: '/admin/logs', params, needAuth: true });
-      const list = data.list || [];
-      const nextCursor = data.next_cursor || null;
-      logsHasMore = !!nextCursor;
-      logsCursor = nextCursor;
-      renderAdminLogs(list, !reset);
-      if (list.length === 0 && reset) adminLogsNoDataMsg.style.display = 'block';
+        // 编辑后重新获取统计数据
+        await fetchStats();
     } catch (err) {
-      showToast('加载日志失败: ' + err.message);
-      if (reset) adminLogsNoDataMsg.style.display = 'block';
+        showToast('保存失败: ' + err.message);
     } finally {
-      logsIsLoading = false;
-      adminLogsLoadingMsg.style.display = 'none';
+        isSaving = false;
     }
   }
 
-  function renderAdminLogs(logs, append = false) {
-    if (!append) adminLogsMessageList.innerHTML = '';
-    if (!logs || logs.length === 0) return;
-    const fragment = document.createDocumentFragment();
-    logs.forEach(log => {
-      const item = document.createElement('div');
-      item.className = 'admin-log-item';
-      const headerDiv = document.createElement('div');
-      headerDiv.style.display = 'flex';
-      headerDiv.style.justifyContent = 'space-between';
-      headerDiv.style.marginBottom = '8px';
-      const phone = log.admin_phone || '未知';
-      const maskedPhone = phone.length === 11 ? phone.substring(0,3) + '****' + phone.substring(7) : '***';
-      headerDiv.innerHTML = `<span style="font-weight:600;color:#7a4e2e;"><i class="fas fa-user-shield" style="margin-right:4px;color:#b87a48;"></i>${maskedPhone}</span><span style="background:#f0dfbc;padding:2px 12px;border-radius:30px;font-size:0.75rem;font-weight:600;color:#7a4e2e;">${log.action_type}</span>`;
-      const timeDiv = document.createElement('div');
-      timeDiv.className = 'admin-log-time';
-      timeDiv.innerHTML = `<i class="far fa-clock"></i> ${formatDateTime(log.created_at)}`;
-      const remarkDiv = document.createElement('div');
-      remarkDiv.className = 'admin-log-remark';
-      remarkDiv.textContent = log.remark || '无备注';
-      item.appendChild(headerDiv);
-      item.appendChild(timeDiv);
-      item.appendChild(remarkDiv);
-      fragment.appendChild(item);
-    });
-    adminLogsMessageList.appendChild(fragment);
-  }
-
-  function bindAdminLogsScroll() {
-    adminLogsMessageList.addEventListener('scroll', () => {
-      const container = adminLogsMessageList;
-      const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      if (scrollBottom < 30 && !logsIsLoading && logsHasMore) {
-        loadAdminLogs(false);
-      }
-    });
-  }
-
-  // ==================== 11. 通用辅助 ====================
-  // 初始化时查询记忆快照执行状态
-  async function checkDailySummaryStatus() {
-      try {
-          const data = await window.http({ method: 'GET', url: '/admin/daily-summary/status', needAuth: true });
-          if (data.alreadyTriggered) {
-              triggerDailySummaryBtn.disabled = true;
-              triggerDailySummaryBtn.style.opacity = '0.6';
-              dailySummaryStatusText.textContent = '📅 今日已执行';
-          } else {
-              triggerDailySummaryBtn.disabled = false;
-              triggerDailySummaryBtn.style.opacity = '1';
-              dailySummaryStatusText.textContent = '';
-          }
-      } catch (e) {
-          // 读取失败不影响，按钮保持可用
-      }
-  }
-
+  // ======================== 14. 二次确认弹窗 ========================
   function showConfirm(msg, onYes) {
     confirmMessage.textContent = msg;
     customConfirm.style.display = 'flex';
@@ -903,6 +809,167 @@
     customConfirm.style.display = 'none';
   }
 
-  // ==================== 12. 启动 ====================
+  // ======================== 15. 事件绑定 ========================
+  function bindEvents() {
+    // 标签页切换
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tab = btn.dataset.tab;
+        if (!tab || tab === currentTab) return;
+        await switchTab(tab);
+      });
+    });
+
+    // 刷新按钮
+    refreshBtn.addEventListener('click', async () => {
+      await loadData();
+      await fetchStats();
+    });
+
+    // 分页按钮
+    prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
+    nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
+    pageJumpBtn.addEventListener('click', () => {
+      const page = parseInt(pageJumpInput.value, 10);
+      if (isNaN(page) || page < 1 || page > totalPages) {
+        showToast(`页码必须在 1 ~ ${totalPages} 之间`);
+        return;
+      }
+      goToPage(page);
+    });
+
+    // 退出登录
+    adminLogoutBtn.addEventListener('click', () => {
+      showConfirm('确定退出管理后台？', () => {
+        showToast('已退出登录，即将跳转...', 1500);
+        localStorage.removeItem('access_token');
+        setTimeout(() => {
+          window.location.href = '/HTML/Index/index.html';
+        }, 1500);
+      });
+    });
+
+    // 邀请码生成
+    generateInvitesBtn.addEventListener('click', generateInvites);
+
+    // 安全控制
+    toggleAdminLoginBtn.addEventListener('click', toggleAdminLogin);
+
+    // 操作日志查询弹窗相关
+    queryLogsBtn.addEventListener('click', queryAdminLogs);
+    closeAdminLogsModalBtn.addEventListener('click', closeAdminLogsModal);
+    adminLogsModal.addEventListener('click', (e) => {
+      if (e.target === adminLogsModal) closeAdminLogsModal();
+    });
+    bindAdminLogsScroll();
+
+    // 每日摘要按钮
+    triggerDailySummaryBtn.addEventListener('click', triggerDailySummary);
+
+    // 日期联动
+    logStartDate.addEventListener('change', function () {
+      if (logStartDate.value) {
+        logEndDate.min = logStartDate.value;
+        if (logEndDate.value && logEndDate.value < logStartDate.value) {
+          logEndDate.value = logStartDate.value;
+        }
+      } else {
+        logEndDate.min = '';
+      }
+    });
+    logEndDate.addEventListener('change', function () {
+      if (logEndDate.value) {
+        logStartDate.max = logEndDate.value;
+        if (logStartDate.value && logStartDate.value > logEndDate.value) {
+          logStartDate.value = logEndDate.value;
+        }
+      } else {
+        logStartDate.max = '';
+      }
+    });
+
+    // 输入限制
+    inviteCountInput.addEventListener('input', function() {
+      let val = parseInt(this.value, 10);
+      if (isNaN(val)) { this.value = ''; return; }
+      if (val < 1) this.value = 1;
+      if (val > 100) this.value = 100;
+    });
+    inviteExpiryDaysInput.addEventListener('input', function() {
+      let val = parseInt(this.value, 10);
+      if (isNaN(val)) { this.value = ''; return; }
+      if (val < 1) this.value = 1;
+      if (val > 7) this.value = 7;
+    });
+
+    // 关闭确认框
+    confirmNoBtn.addEventListener('click', closeConfirm);
+
+    // 表格委托事件
+    document.getElementById('adminTableWrapper').addEventListener('click', (e) => {
+      const phoneToggle = e.target.closest('.phone-toggle');
+      if (phoneToggle) {
+        const full = phoneToggle.dataset.full;
+        if (phoneToggle.textContent === full) {
+          phoneToggle.textContent = maskPhone(full);
+        } else {
+          phoneToggle.textContent = full;
+        }
+      }
+
+      const editBtn = e.target.closest('.fa-pen');
+      const delBtn = e.target.closest('.fa-trash-alt');
+      
+      if (editBtn) {
+          const row = e.target.closest('tr');
+          const id = row?.dataset.recordId;
+          if (id) {
+              const item = currentDataList.find(d => d.id == id);
+              if (item) openEditModal(item);
+          }
+      }
+      
+      if (delBtn) {
+          const row = e.target.closest('tr');
+          const id = row?.dataset.recordId;
+          if (id) {
+              const item = currentDataList.find(d => d.id == id);
+              if (item) handleDelete(item);
+          }
+      }
+    });
+
+    // 编辑保存按钮
+    document.getElementById('saveEditBtn').addEventListener('click', handleEditSave);
+
+    // 取消编辑按钮
+    document.getElementById('cancelEditBtn').addEventListener('click', () => {
+        document.getElementById('editModal').style.display = 'none';
+    });
+    document.getElementById('closeEditModal').addEventListener('click', () => {
+        document.getElementById('editModal').style.display = 'none';
+    });
+  }
+
+  // ======================== 16. 初始化与启动 ========================
+  function setDefaultDates() {
+    const today = new Date().toISOString().split('T')[0];
+    if (logStartDate) logStartDate.value = today;
+    if (logEndDate) logEndDate.value = today;
+  }
+
+  async function init() {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      window.location.href = '/HTML/Index/index.html';
+      return;
+    }
+    setDefaultDates();
+    await checkDailySummaryStatus();
+    await switchTab('users');
+    await fetchStats();
+    bindEvents();
+  }
+
   init();
 })();

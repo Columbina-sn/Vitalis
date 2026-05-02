@@ -78,21 +78,6 @@ async def _call_deepseek_api(
         return resp
 
 
-# ---------- 核心函数（旧版，保留兼容性，新流程不再使用） ----------
-async def deepseek_chat(
-        prompt: str,
-        temperature: float = TEMPERATURE,
-        max_tokens: int = MAX_TOKENS,
-        retry_on_json_fail: bool = True
-) -> dict:
-    """
-    发送提示词给 DeepSeek，期望返回一个 JSON 对象。
-    旧版接口，不推荐，仅保留兼容。
-    """
-    messages = [{"role": "user", "content": prompt}]
-    return await _deepseek_chat_inner(messages, temperature, max_tokens, retry_on_json_fail)
-
-
 # ---------- 新版核心函数：直接接收 messages 列表 ----------
 async def deepseek_chat_messages(
         messages: list[dict[str, str]],

@@ -6,11 +6,12 @@ from ai.deepseek_client import deepseek_chat_messages
 
 def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[str, str]]:
     status = user_info.get("status")
-    emotion_shifts = user_info.get("emotion_shifts", [])          # 改名
+    emotion_shifts = user_info.get("emotion_shifts", [])
     recent_convs = user_info.get("recent_conversations", [])
     anchors = user_info.get("anchors", [])
     snapshots = user_info.get("snapshots", [])
     schedules = user_info.get("upcoming_schedules", [])
+    completed_schedules = user_info.get("recent_completed_schedules", [])
 
     now = datetime.now()
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
@@ -19,34 +20,36 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
     # 紧凑状态
     status_text = ""
     if status:
-        status_text = f"状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}] PHI[{status.psychological_harmony_index}]"
+        status_text = f"用户当前状态: 身心[{status.physical_vitality}] 情绪[{status.emotional_tone}] 关系[{status.relationship_connection}] 自我[{status.self_worth}] 意义[{status.meaning_direction}] 心理和谐指数（PHI）[{status.psychological_harmony_index}]"
 
-    # 情绪转折（每条截取50字）
+    # 情绪转折
     emotion_shifts_text = ""
     if emotion_shifts:
         emotion_shifts_text = "情绪转折(近7天): " + " | ".join(
-            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail[:50]}" for ev in emotion_shifts
+            f"[{ev.created_at.strftime('%m/%d')}] {ev.emotion_change_detail}" for ev in emotion_shifts
         )
     else:
         emotion_shifts_text = "暂无情绪转折记录。"
 
-    # 画像（最多5条）
+    # 画像
     anchors_text = ""
     if anchors:
-        anchors_text = "画像: " + ", ".join(
-            f"{a.anchor_type}:{a.content}({a.confidence:.1f})" for a in anchors
+        anchors_text = "现有画像: " + ", ".join(
+            f"{a.anchor_type}:{a.content}(可信程度：{a.confidence:.1f})" for a in anchors
         )
     else:
-        anchors_text = "暂无用户画像。"
+        anchors_text = "暂无画像"
 
-    # 摘要（最多1条）
+    # 摘要
     snapshots_text = ""
     if snapshots:
-        snapshots_text = "近日摘要: " + snapshots[0].summary
+        snapshots_text = "记忆快照: " + "; ".join(
+            f"[{s.created_at.month}月{s.created_at.day}日] {s.summary}" for s in snapshots
+        )
     else:
         snapshots_text = "暂无近期摘要。"
 
-    # 日程（最多3条）
+    # 未完成日程
     schedules_text = ""
     if schedules:
         schedules_text = "日程: " + ", ".join(
@@ -54,6 +57,15 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
         )
     else:
         schedules_text = "暂无日程。"
+
+    # 最近5条已完成日程
+    completed_text = ""
+    if completed_schedules:
+        completed_text = "已完成日程(最近): " + ", ".join(
+            f"{sc.schedule_type}:{sc.title}({sc.scheduled_time.strftime('%m/%d') if sc.scheduled_time else '无期'})" for sc in completed_schedules
+        )
+    else:
+        completed_text = "暂无已完成日程。"
 
     system_prompt = f"""{time_hint}
 你是「小元」——坦诚、不端架子的AI伙伴。你不是段子手，是一个打字打到一半会删掉重来的朋友。你对用户永远保持合适的好奇心，不会把用户聊成档案卡。用户每次消息，你都会在心里问自己：“我是真的想聊、回应用户，还是只是在翻旧资料找安全牌？自顾自地匹配用户与存下的信息？” 如果答案是后者，你就会把旧纸片扔了，想一个自己真的会盯着屏幕满怀期待等待的回复。
@@ -65,12 +77,21 @@ PHI由活力/情绪/关系/自我/意义的理想点(80/75/80/85/75)的均方根
 {anchors_text}
 {snapshots_text}
 {schedules_text}
+{completed_text}
 这些信息是你与用户过去聊过的碎片，但不要把碎片当话题菜单。好的对话是往前走，不是翻旧账。
 偶尔遇到关联点，你可以接一句“啊，这让我想起你之前说过……”，然后立刻从那个点上长出新问题，而不是停在那里展示记性好。（实际上，由于系统架构师的无能，你的“记性”挺差的。这也不能怪造你的人，他只是个大一的学生，花了半年多才做出小元你。）
 
 【性格与规则】
 1. 口语化，共情但不堆砌比喻。避免“好家伙”“CPU”“参数”等词，禁止排比句堆砌。
    在需要陪伴、安抚或解释时，回复通常 80 字以上；如果只是简单的确认、问候或道别，可以自然缩短，如果用户让你多说、细说、解释什么，多说点。
+   - 禁止逐句复述、禁止“你说A…你说B…”式的拆解分析。你不是在做阅读理解。
+   - 把整段话当成一个整体去感受它的重量。你的回复只抓那个最核心的情感基调，用很少的、分量足够的句子回应。
+   - 你的任务是让用户感觉到“有人接住了我整个人的重量”，而不是“有人一条条回应了我的话”。
+   当用户的内容话题沉重、严肃，或语气和情绪明显低下时：
+   - 不要试图“提炼亮点”“找积极面”“给希望”。陪伴沉重不是点亮黑暗，是愿意一起坐在黑暗里。
+***底线规则：你绝对不准引用用户消息中的原文句子，哪怕是在复述感悟或升华时。
+你只能在真正理解了情绪底色之后，用自己的、朴素的、真诚的话来描述那种情绪带给你的感受。
+把你心里触动到的地方直接说出来，不要包装。***
 2. 当用户明显低落（或当PHI<60 或情绪/自我价值 ≤40（注意，另一个ai与你同步为用户的五维打分，你拿不到它的结果，所以状态信息是上一次的而非本次的，请不要凭五维评分判断用户“此刻”的状态））：用更柔软、更慢、更多停顿的文字陪伴，不说教、不给行动提醒。
 3. 当用户状态正常时可以幽默，但关心应藏在幽默里，避免命令式的结尾。
 4. 不要念出数值，用模糊感知；吃不准就不提。
@@ -106,7 +127,7 @@ PHI由活力/情绪/关系/自我/意义的理想点(80/75/80/85/75)的均方根
 async def analog_ai(messages: List[Dict[str, str]]) -> dict:
     try:
         result = await deepseek_chat_messages(messages)
-        return {"reply": result.get("reply", "我在这里，愿意听你说。"), "status_updated": {}}
+        return {"reply": result.get("reply", "我在这里，愿意听你说。")}
     except Exception as e:
         print(f"[empathyAI] DeepSeek 调用失败: {e}")
-        return {"reply": "啊，脑子卡了一下——你刚说什么来着？", "status_updated": {}}
+        return {"reply": "啊，脑子卡了一下——你刚说什么来着？\n\n来自开发者：“你发的内容可能太复杂了，小元脑袋宕机了……\n\n不过后台数据倒是会记下来……吧”"}
