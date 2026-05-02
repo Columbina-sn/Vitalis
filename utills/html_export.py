@@ -184,6 +184,17 @@ def generate_export_html(data: Dict[str, Any]) -> str:
             border-top: 1px dashed #e6d0b0;
             padding-top: 20px;
         }}
+        body::-webkit-scrollbar {{
+            width: 10px;
+        }}
+        body::-webkit-scrollbar-track {{
+            background: #f5ecd8;
+            border-radius: 10px;
+        }}
+        body::-webkit-scrollbar-thumb {{
+            background: #ddc8a4;
+            border-radius: 10px;
+        }}
     </style>
 </head>
 <body>

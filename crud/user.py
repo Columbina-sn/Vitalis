@@ -1,10 +1,11 @@
 # crud/user.py
-from sqlalchemy import select, delete, desc, case
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from typing import Optional
 
-from models import User, UserStatus, InviteCode, UserStatusHistory, EmotionShift, MemorySnapshot, MemoryAnchor, \
+from sqlalchemy import select, delete, desc, case
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import User, UserStatus, InviteCode, UserStatusHistory, MemorySnapshot, MemoryAnchor, \
     UserSchedule
 from utills.psychological_harmony_index import calculate_phi
 from utills.security import get_hash_password
@@ -112,21 +113,21 @@ async def get_user_status_by_user_id(db: AsyncSession, user_id: int) -> Optional
     return result.scalar_one_or_none()
 
 
-async def get_recent_events_by_user_id(
-    db: AsyncSession, user_id: int, limit: int = 3
-) -> list[str]:
-    """
-    获取用户最近的情绪转折描述（按创建时间倒序，限制条数）
-    原方法名不变，但数据来源改为 emotion_shifts
-    """
-    result = await db.execute(
-        select(EmotionShift.emotion_change_detail)
-        .where(EmotionShift.user_id == user_id)
-        .order_by(desc(EmotionShift.created_at))
-        .limit(limit)
-    )
-    summaries = result.scalars().all()
-    return list(summaries)
+# async def get_recent_events_by_user_id(
+#     db: AsyncSession, user_id: int, limit: int = 3
+# ) -> list[str]:
+#     """
+#     获取用户最近的情绪转折描述（按创建时间倒序，限制条数）
+#     原方法名不变，但数据来源改为 emotion_shifts
+#     """
+#     result = await db.execute(
+#         select(EmotionShift.emotion_change_detail)
+#         .where(EmotionShift.user_id == user_id)
+#         .order_by(desc(EmotionShift.created_at))
+#         .limit(limit)
+#     )
+#     summaries = result.scalars().all()
+#     return list(summaries)
 
 
 async def update_user_password(db: AsyncSession, user_id: int, hashed_password: str) -> Optional[User]:

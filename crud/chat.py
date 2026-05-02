@@ -18,7 +18,7 @@ async def get_user_full_info(
 ) -> Optional[Dict[str, Any]]:
     """
     获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
-    长期记忆（近21天锚点按置信度取前8、近2天摘要1条、14天前7天后日程不限条数）。
+    长期记忆（近21天锚点按置信度取前15、近2天摘要1条、14天前7天后日程不限条数）。
     """
     user = await db.get(User, user_id)
     if not user:
@@ -49,8 +49,8 @@ async def get_user_full_info(
     )
     recent_conversations = messages_result.scalars().all()
 
-    # 长期记忆：近14天内更新的锚点，按置信度降序取前10
-    two_weeks_ago = datetime.now() - timedelta(days=14)
+    # 长期记忆：近21天内更新的锚点，按置信度降序取前15
+    two_weeks_ago = datetime.now() - timedelta(days=21)
     anchors_result = await db.execute(
         select(MemoryAnchor)
         .where(
@@ -58,7 +58,7 @@ async def get_user_full_info(
             MemoryAnchor.updated_at >= two_weeks_ago
         )
         .order_by(desc(MemoryAnchor.confidence))
-        .limit(10)
+        .limit(15)
     )
     anchors = anchors_result.scalars().all()
 

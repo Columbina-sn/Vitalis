@@ -4,14 +4,15 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import HTMLResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
 from core.deps import get_current_user
 from crud.user import update_user_nickname, update_user_avatar, delete_user_account, get_user_status_by_user_id, \
-    get_recent_events_by_user_id, update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
+    update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
     get_user_schedules
+from models import User
 from schemas.user import (
     UserBaseInfoResponse,
     UserInfoResponse,
@@ -19,7 +20,6 @@ from schemas.user import (
     UpdateAvatarResponse,
     DeleteAccountRequest,
     UserStatusResponse,
-    RecentEventsResponse,
     ChangePasswordRequest,
     StatusDimension,
     StatusHistoryResponse,
@@ -28,7 +28,6 @@ from schemas.user import (
 from utills.html_export import generate_export_html
 from utills.psychological_harmony_index import calculate_phi
 from utills.response import success_response
-from models import User
 from utills.security import verify_password, get_hash_password
 
 router = APIRouter(prefix="/user", tags=["用户"])
@@ -242,17 +241,17 @@ async def delete_account(
     return success_response(message="账户已成功注销", data=None)
 
 
-@router.get("/recent-events", response_model=RecentEventsResponse, summary="获取当前用户最近三条重大事件")
-async def get_recent_events(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    获取当前用户最近三条重大事件（仅返回事件概述）
-    """
-    events = await get_recent_events_by_user_id(db, current_user.id, limit=3)
-    data = RecentEventsResponse(events=events)
-    return success_response(message="获取最近事件成功", data=data)
+# @router.get("/recent-events", response_model=RecentEventsResponse, summary="获取当前用户最近三条重大事件")
+# async def get_recent_events(
+#     current_user: User = Depends(get_current_user),
+#     db: AsyncSession = Depends(get_db)
+# ):
+#     """
+#     获取当前用户最近三条重大事件（仅返回事件概述）
+#     """
+#     events = await get_recent_events_by_user_id(db, current_user.id, limit=3)
+#     data = RecentEventsResponse(events=events)
+#     return success_response(message="获取最近事件成功", data=data)
 
 
 @router.post("/change-password", summary="修改用户密码")
@@ -301,10 +300,10 @@ async def get_status_history(
 ):
     """
     获取当前用户在指定维度上的近10次历史状态记录
-    - dimension: 必须为 physical_vitality, emotional_tone, relationship_connection, self_worth, meaning_direction 之一
+    - dimension: 必须为 physical_vitality, emotional_tone, relationship_connection, self_worth, meaning_direction, psychological_harmony_index 之一
     """
     history_data = await get_status_history_by_dimension(
-        db, current_user.id, dimension.value, limit=10
+        db, current_user.id, dimension.value, limit=15
     )
     items = [StatusHistoryItem(recorded_at=item["recorded_at"], value=item["value"]) for item in history_data]
     return StatusHistoryResponse(dimension=dimension, history=items)

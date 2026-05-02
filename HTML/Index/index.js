@@ -39,20 +39,22 @@
     setInterval(rotateBackground, 2000);
     initBackground();
 
-    // ======================== 评论模块 ========================
+    // ======================== Comment 模块 ========================
+
+    // ---------- 1.1 加载评论列表 (GET /comment/list) ----------
+    // [DOM 元素] 获取评论列表相关 DOM
     const commentListEl = document.getElementById('commentList');
     const wrapper = document.getElementById('commentListWrapper');
     const loadingEl = document.getElementById('commentLoading');
     const noMoreEl = document.getElementById('commentNoMore');
-    const submitBtn = document.getElementById('submitCommentBtn');
-    const contentTextarea = document.getElementById('commentContent');
-    const charCountSpan = document.getElementById('charCount');
 
+    // [状态变量] 分页相关
     let nextCursor = null;
     const pageSize = 10;
     let hasMore = true;
     let isLoading = false;
 
+    // [渲染函数] 将评论数据渲染到页面
     function renderComments(comments, reset = false) {
         if (reset) commentListEl.innerHTML = '';
         if (!comments || comments.length === 0) {
@@ -103,6 +105,7 @@
         commentListEl.appendChild(fragment);
     }
 
+    // [调用接口函数] 从服务器加载评论列表
     async function loadComments(reset = false) {
         if (isLoading) return;
         if (!reset && !hasMore) {
@@ -161,6 +164,7 @@
         }
     }
 
+    // [事件绑定函数] 滚动加载更多评论
     function bindScrollListener() {
         if (!wrapper) return;
         wrapper.addEventListener('scroll', () => {
@@ -172,6 +176,13 @@
         });
     }
 
+    // ---------- 1.2 提交评论 (POST /comment/new-comment) ----------
+    // [DOM 元素] 提交评论相关 DOM
+    const submitBtn = document.getElementById('submitCommentBtn');
+    const contentTextarea = document.getElementById('commentContent');
+    const charCountSpan = document.getElementById('charCount');
+
+    // [调用接口函数] 提交评论
     async function submitComment() {
         const content = contentTextarea.value.trim();
         if (!content) {
@@ -195,7 +206,7 @@
             });
             contentTextarea.value = '';
             updateCharCount();
-            await loadComments(true);
+            await loadComments(true);   // 重新加载列表并置顶
             if (wrapper) wrapper.scrollTop = 0;
             window.showToast('✨ 评论发布成功！', 3000);
         } catch (error) {
@@ -210,10 +221,12 @@
         }
     }
 
+    // [辅助函数] 更新字数统计
     function updateCharCount() {
         if (charCountSpan) charCountSpan.textContent = contentTextarea.value.length;
     }
 
+    // [辅助函数] 自动调整输入框高度
     function autoResize() {
         if (!contentTextarea) return;
         contentTextarea.style.height = 'auto';
@@ -228,12 +241,27 @@
         }
     }
 
-    // ======================== 登录/注册切换 ========================
+    // [事件绑定] 评论输入框及提交按钮事件
+    function bindCommentEvents() {
+        if (submitBtn) submitBtn.addEventListener('click', submitComment);
+        if (contentTextarea) {
+            contentTextarea.addEventListener('input', updateCharCount);
+            updateCharCount(); // 初始字数
+            contentTextarea.addEventListener('input', autoResize);
+        }
+    }
+
+    // ======================== Auth 模块 ========================
+
+    // ---------- 2.1 登录/注册选项卡切换 ----------
+    // [DOM 元素]
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+
+    // [事件绑定函数] 切换选项卡
     function initAuthTabs() {
-        const loginTab = document.getElementById('loginTab');
-        const registerTab = document.getElementById('registerTab');
-        const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
         if (!loginTab || !registerTab) return;
 
         function setActiveTab(active) {
@@ -254,19 +282,14 @@
         registerTab.addEventListener('click', () => setActiveTab('register'));
     }
 
-    // ======================== 登录/注册请求 ========================
+    // ---------- 2.2 登录 (POST /auth/login + 二级验证) ----------
+    // [DOM 元素] 登录表单相关
     const loginBtn = document.getElementById('loginBtn');
-    const registerBtn = document.getElementById('registerBtn');
     const loginPhone = document.getElementById('loginPhone');
     const loginPassword = document.getElementById('loginPassword');
-    const registerPhone = document.getElementById('registerPhone');
-    const registerPassword = document.getElementById('registerPassword');
-    const registerConfirmPassword = document.getElementById('registerConfirmPassword');
-    const registerInviteCode = document.getElementById('registerInviteCode');
-
     const phoneRegex = /^1[3-9]\d{9}$/;
 
-    // 显示二级验证弹窗（30秒倒计时）
+    // [二级验证弹窗] 显示弹窗并处理 POST /auth/admin/second-verify
     function showSecondFactorModal(adminPhone) {
         const modal = document.getElementById('secondFactorModal');
         const passwordInput = document.getElementById('secondPasswordInput');
@@ -368,6 +391,7 @@
         });
     }
 
+    // [调用接口函数] 处理登录
     async function handleLogin() {
         const phone = loginPhone.value.trim();
         const password = loginPassword.value.trim();
@@ -416,6 +440,20 @@
         }
     }
 
+    // [事件绑定] 登录按钮
+    function bindLoginEvents() {
+        if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    }
+
+    // ---------- 2.3 注册 (POST /auth/register) ----------
+    // [DOM 元素] 注册表单相关
+    const registerBtn = document.getElementById('registerBtn');
+    const registerPhone = document.getElementById('registerPhone');
+    const registerPassword = document.getElementById('registerPassword');
+    const registerConfirmPassword = document.getElementById('registerConfirmPassword');
+    const registerInviteCode = document.getElementById('registerInviteCode');
+
+    // [调用接口函数] 处理注册
     async function handleRegister() {
         const phone = registerPhone.value.trim();
         const password = registerPassword.value.trim();
@@ -461,23 +499,26 @@
         }
     }
 
-    // ======================== 初始化 ========================
+    // [事件绑定] 注册按钮
+    function bindRegisterEvents() {
+        if (registerBtn) registerBtn.addEventListener('click', handleRegister);
+    }
+
+    // ======================== 全局初始化 ========================
     async function init() {
         // 清空可能残留的非管理员 token，确保干净登录
         localStorage.removeItem('user_base_info');
         localStorage.removeItem('access_token');
 
+        // 初始化各个模块
         initAuthTabs();
-        if (submitBtn) submitBtn.addEventListener('click', submitComment);
-        if (contentTextarea) {
-            contentTextarea.addEventListener('input', updateCharCount);
-            updateCharCount();
-            contentTextarea.addEventListener('input', autoResize);
-        }
-        await loadComments(true);
+        bindCommentEvents();
         bindScrollListener();
-        if (loginBtn) loginBtn.addEventListener('click', handleLogin);
-        if (registerBtn) registerBtn.addEventListener('click', handleRegister);
+        bindLoginEvents();
+        bindRegisterEvents();
+
+        // 首次加载评论列表
+        await loadComments(true);
     }
 
     if (document.readyState === 'loading') {

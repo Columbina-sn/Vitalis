@@ -80,9 +80,9 @@ class UserStatusResponse(BaseModel):
         from_attributes = True
 
 
-class RecentEventsResponse(BaseModel):
-    """最近重大事件响应"""
-    events: List[str] = Field(default_factory=list, description="事件概述列表（按时间倒序）")
+# class RecentEventsResponse(BaseModel):
+#     """最近重大事件响应"""
+#     events: List[str] = Field(default_factory=list, description="事件概述列表（按时间倒序）")
 
 
 class ChangePasswordRequest(BaseModel):
