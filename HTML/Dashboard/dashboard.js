@@ -914,6 +914,7 @@
     let historyHasMore = true;
     let historyIsLoading = false;
     const historyPageSize = 20;
+    let userScrolledUp = false;   // 用户是否主动向上滚动
 
     // ================================================================
     //  2.1 发送消息 (POST /chat/conversation) 与打字机效果
@@ -935,8 +936,11 @@
         "（把光标移回去删掉了半句）这样好多了。",
         "有时候不说话比说错话更难，但小元在努力。",
         "（托腮）这个问题比我预想的要深，让我多琢磨一会儿。",
+        "我脑子里现在大概有三四个版本的回复在打架。",
+        "你的话像一颗石头扔进湖里，我的涟漪还在往外扩。",
         "刚才打了一长串，读了一遍觉得太啰嗦，重来。",
-        "什么……有人原来是抱着看小元还能犯什么错的想法来与小元聊天的嘛！"
+        "什么……有人原来是抱着看小元还能犯什么错的想法来与小元聊天的嘛！",
+        "好消息是，我还没死机；坏消息是，我还在措辞。"
     ];
 
     const thinkingTutorialMessages = [
@@ -1028,7 +1032,7 @@
                 contentEl.insertAdjacentHTML('beforeend', window.escapeHtml(char));
             }
             index++;
-            if (messageContainer) {
+            if (messageContainer && !userScrolledUp) {
                 messageContainer.scrollTop = messageContainer.scrollHeight;
             }
             setTimeout(appendNext, speed + Math.random() * 10);
@@ -1200,6 +1204,8 @@
             window.showToast('正在发送中，请稍候', 1500);
             return;
         }
+
+        userScrolledUp = false;
 
         const now = new Date();
         addMessageWithDividers('user', userText, now);
@@ -1510,7 +1516,10 @@
         updateBottomBtnPosition();
 
         topBtn.addEventListener('click', () => messageContainer.scrollTo({ top: 0, behavior: 'smooth' }));
-        bottomBtn.addEventListener('click', () => messageContainer.scrollTo({ top: messageContainer.scrollHeight, behavior: 'smooth' }));
+        bottomBtn.addEventListener('click', () => {
+            userScrolledUp = false;
+            messageContainer.scrollTo({ top: messageContainer.scrollHeight, behavior: 'smooth' });
+        });
 
         function updateScrollButtons() {
             if (!messageContainer) return;
@@ -1569,6 +1578,20 @@
                 }
             });
         }
+
+        messageContainer.addEventListener('scroll', () => {
+            const threshold = 20; // 距离底部 20px 以内认为在底部
+            const atBottom = messageContainer.scrollHeight - messageContainer.clientHeight - messageContainer.scrollTop <= threshold;
+            userScrolledUp = !atBottom;
+
+            // 原有的“触顶加载历史”逻辑保持不变
+            if (messageContainer.scrollTop <= 5 && !historyIsLoading && historyHasMore) {
+                loadMoreHistory(false);
+            } else if (messageContainer.scrollTop <= 5 && !historyHasMore && !topWelcomeAdded) {
+                addTopWelcomeMessages();
+                topWelcomeAdded = true;
+            }
+        });
 
         createScrollButtons();
     }
