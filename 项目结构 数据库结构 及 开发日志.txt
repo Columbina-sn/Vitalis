@@ -1613,6 +1613,61 @@ Vitalis/
 - 响应式投降，做不来，做不好，手机端AWWBWG。
 
 5.5
+- 深色模式前的数据库准备，为将来的安全升级预留数据基础。
+  - users 表新增三个字段：
+    - current_token (VARCHAR(500))：记录用户当前有效的 JWT 令牌，支持单设备登录与会话管理。
+    - current_login_ip (VARCHAR(45))：记录最近一次登录的 IP 地址，用于安全审计与异地登录预警。
+    - theme_mode (TINYINT UNSIGNED，默认 2)：主题模式设置，0=浅色，1=深色，2=跟随系统，为前端深色模式切换提供持久化存储。
+  - 精简 emotion_shifts 表：移除 trigger_keywords 字段，简化情绪转折记录结构。
+  - 精简 memory_anchors 表：移除 last_mentioned_at 字段及联合索引 idx_user_last_mentioned，降低维护复杂度。
+
+以上改动均同步至完整初始化脚本、一次性升级脚本及 models.py 模型定义，确保新旧数据库均可平滑迁移。
+
+5.5（续）
+- 完成全站深色模式适配，涵盖首页、仪表盘、管理后台三个页面。
+  后端准备：
+  · 在 `schemas/user.py` 的 `UserBaseInfoResponse` 中新增 `theme_mode` 字段（0=浅色，1=深色，2=跟随系统）。
+  · 在 `crud/user.py` 中新增 `update_user_theme_mode` 函数，更新用户主题偏好设置。
+  · 在 `routers/user.py` 中：
+    - 修改 `GET /user/base-info` 接口，返回数据中追加 `theme_mode` 字段。
+    - 新增 `POST /user/theme-mode` 接口，接收 `{ theme_mode: 0|1|2 }` 并存库。
+  · 在 `schemas/user.py` 中新增 `UpdateThemeModeRequest` 模型，校验范围 0-2。
+
+- 前端 JS 主题管理核心（`utils.js`）：
+  · 新增 `getSystemTheme()` 函数，通过 `matchMedia('prefers-color-scheme: dark')` 获取系统偏好。
+  · 新增 `window.applyTheme(mode)`：根据 mode 值给 `<body>` 设置 `data-theme` 属性（`light`/`dark`/跟随系统），并写入 `localStorage`。
+  · 新增 `window.initTheme()`：页面加载时从 `localStorage` 读取 theme_mode，调用 `applyTheme`。
+  · 监听系统主题变化事件，仅在 mode=2 时自动跟随切换。
+
+  前端仪表盘（`dashboard.js`、`dashboard.html`）：
+  · `fetchBaseInfo` 接收并缓存 `theme_mode`，`init` 阶段自动调用 `applyTheme`。
+  · 新增 `changeTheme(mode)` 函数：调用 `POST /user/theme-mode` 存库，同步更新本地缓存与 `<body>` 属性。
+  · 在个人资料弹窗（`#profileModal`）的底部按钮区域新增三个主题切换按钮：☀️ 浅色模式、🌙 深色模式、🖥️ 跟随系统。
+  · 按钮在 `bindUserEvents` 中绑定事件，切换成功后更新缓存并显示对应按钮的 `.active` 状态。
+
+  前端首页（`index.js`）与管理后台（`admin.js`）：
+  · 在 `init` 函数中调用 `window.initTheme()`，页面加载即自动应用主题。
+  · 管理员后台因无用户记录，仅依赖 `localStorage` 缓存的主题模式（已由登录或仪表盘设置）。
+
+- CSS 深色补丁（`base.css`）：
+  · 因原有大量样式硬编码具体颜色值（如 `#fdfaf0`、`#fffef8` 等），采用了 `body[data-theme="dark"]` 选择器 + `!important` 的覆盖策略，将补丁集中追加在 `base.css` 末尾，避免改动原有 CSS 文件结构。
+  · 完整覆盖三大页面所有主要视觉区域：
+    - 首页：评论卡片、评论项、提交区、登录/注册卡片、输入框、按钮、二级验证弹窗。
+    - 仪表盘：主界面、头部、Logo、日期跳转组件、聊天区背景与横线、消息气泡（左右两侧含伪元素尾巴）、输入区、状态区进度条、数值标签、日程全览左右两栏背景、日程卡片（保留类型左边框色）、分割线、全部弹窗（个人资料/故事/确认/密码/图表/日期历史）、头像悬浮、回到顶部按钮。
+    - 管理后台：管理员徽章、数据区背景、标签页、表格表头与单元格、分页按钮、操作区及卡片、输入行、各类按钮（主要/次要/警告）、邀请码列表、操作日志条目、编辑输入框、操作图标。
+  · 补充深色滚动条样式（`body[data-theme="dark"]::-webkit-scrollbar-track/thumb` 及各种滚动容器的单独覆盖）。
+  · 将登录卡片右上角的装饰符号由 ☀️ 改为 🌙（`body[data-theme="dark"] .auth-card::after { content: '🌙' }`）。
+  · 主题按钮 `.active` 状态：金棕色边框与背景高亮，明确指示当前选中模式。
+
+- 测试与问题修复：
+  · 修复日程卡片左边框颜色在深色下全部变为深红色的问题：移除对 `.schedule-item` 的 `border-left-color` 覆盖，保留 `dashboard.css` 中各类型原本的柔和蜡笔色变量。
+  · 修复 body 自身滚动条未变色问题：因 `body[data-theme="dark"] ::-webkit-scrollbar-track`（有空格）仅匹配后代容器滚动条，需单独增加 `body[data-theme="dark"]::-webkit-scrollbar-track`（无空格）的样式。
+  · 修复管理后台日期输入框、页码输入框未着色问题：为 `#logStartDate`、`#logEndDate`、`#pageJumpInput` 补充深色样式。
+  · 修复管理员回复区域（`.admin-reply-section`）未适配问题。
+  · 修复主题切换按钮无 active 状态问题：在 `applyTheme` 中通过 `classList.toggle('active', mode === N)` 联动 UI。
+  · 硬刷新后逐一验证三页切换流畅，所有组件颜色过渡自然，无刺眼或不协调区域。
+
+- 本次改动全面完成了深色模式的前后端联动，用户可在仪表盘个人弹窗中一键切换主题并持久化存储；CSS 补丁方案虽略显粗放，但在不重构原样式架构的前提下实现了完整的深色视觉覆盖，维护成本可控，为后续部署提供了良好的用户体验基础。
 
 
 ----------==========问题与解决==========----------

@@ -1061,7 +1061,7 @@ body::-webkit-scrollbar-thumb,
 }
 
 .profile-card {
-  width: 620px; /* 固定宽度620px */
+  width: 650px; /* 固定宽度620px */
   max-width: 90%; /* 最大宽度90% */
   background: #fffef5; /* 背景色 */
   border-radius: 48px; /* 圆角48px */
@@ -1143,6 +1143,32 @@ body::-webkit-scrollbar-thumb,
   justify-content: flex-end; /* 靠右对齐 */
   margin-top: 8px; /* 上边距 */
   gap: 16px
+}
+
+/* 主题切换按钮 */
+.theme-switcher {
+  display: flex;
+  gap: 6px;
+  margin-right: auto;
+  align-items: center;
+}
+.theme-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.theme-btn:hover {
+  transform: scale(1.1);
+  background: var(--btn-primary-bg);
 }
 
 .profile-export-btn {

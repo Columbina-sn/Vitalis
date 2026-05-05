@@ -66,3 +66,53 @@
         });
     };
 })(); // 立即执行函数结束
+
+// ---------- 主题管理 ----------
+(function() {
+    // 获取当前系统主题偏好 (dark/light)
+    function getSystemTheme() {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    // 根据主题模式设置 data-theme 属性
+    // mode: 0=浅色, 1=深色, 2=跟随系统
+    window.applyTheme = function(mode) {
+        const body = document.body;
+        if (!body) return;
+        if (mode === 0) {
+            body.setAttribute('data-theme', 'light');
+        } else if (mode === 1) {
+            body.setAttribute('data-theme', 'dark');
+        } else {
+            const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            body.setAttribute('data-theme', sys);
+        }
+        localStorage.setItem('theme_mode', mode);
+
+        // 更新主题按钮 active 状态（仅当按钮存在时）
+        const lightBtn = document.getElementById('themeLightBtn');
+        const darkBtn = document.getElementById('themeDarkBtn');
+        const autoBtn = document.getElementById('themeAutoBtn');
+        if (lightBtn) lightBtn.classList.toggle('active', mode === 0);
+        if (darkBtn) darkBtn.classList.toggle('active', mode === 1);
+        if (autoBtn) autoBtn.classList.toggle('active', mode === 2);
+    };
+
+    // 监听系统主题变化，仅在跟随系统模式下自动切换
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const stored = localStorage.getItem('theme_mode');
+        if (stored == null || stored === '2') {
+            window.applyTheme(2);
+        }
+    });
+
+    // 初始化主题：优先从 localStorage 读取，无则默认跟随系统
+    window.initTheme = function() {
+        const stored = localStorage.getItem('theme_mode');
+        const mode = stored !== null ? parseInt(stored) : 2;
+        window.applyTheme(mode);
+    };
+
+    // 页面加载时立即调用一次
+    window.initTheme();
+})();

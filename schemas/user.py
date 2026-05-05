@@ -41,6 +41,12 @@ class UserBaseInfoResponse(BaseModel):
     """基本信息响应（/base-info）"""
     has_seen_intro: bool
     avatar: str
+    theme_mode: int = Field(default=2, description="主题模式：0-浅色，1-深色，2-跟随系统")
+
+
+class UpdateThemeModeRequest(BaseModel):
+    """修改主题模式请求体"""
+    theme_mode: int = Field(..., ge=0, le=2, description="主题模式：0-浅色，1-深色，2-跟随系统")
 
 
 class UserInfoResponse(BaseModel):

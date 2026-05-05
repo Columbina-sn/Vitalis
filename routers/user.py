@@ -11,7 +11,7 @@ from config.db_conf import get_db
 from core.deps import get_current_user
 from crud.user import update_user_nickname, update_user_avatar, delete_user_account, get_user_status_by_user_id, \
     update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
-    get_user_schedules
+    get_user_schedules, update_user_theme_mode
 from models import User
 from schemas.user import (
     UserBaseInfoResponse,
@@ -23,7 +23,7 @@ from schemas.user import (
     ChangePasswordRequest,
     StatusDimension,
     StatusHistoryResponse,
-    StatusHistoryItem, UserScheduleResponse
+    StatusHistoryItem, UserScheduleResponse, UpdateThemeModeRequest
 )
 from utills.html_export import generate_export_html
 from utills.psychological_harmony_index import calculate_phi
@@ -44,10 +44,11 @@ os.makedirs(AVATAR_UPLOAD_DIR, exist_ok=True)
 async def get_base_info(
     current_user: User = Depends(get_current_user),
 ):
-    """获取用户基本信息（是否看过新手引导、头像URL）"""
+    """获取用户基本信息（是否看过新手引导、头像URL、主题模式）"""
     data = UserBaseInfoResponse(
         has_seen_intro=current_user.has_seen_intro,
-        avatar=current_user.avatar or DEFAULT_AVATAR_URL
+        avatar=current_user.avatar or DEFAULT_AVATAR_URL,
+        theme_mode=current_user.theme_mode if current_user.theme_mode is not None else 2
     )
     return success_response(message="获取用户基本信息成功", data=data)
 
@@ -200,6 +201,20 @@ async def change_avatar(
         message="修改头像成功",
         data=UpdateAvatarResponse(avatar_url=new_avatar_url)
     )
+
+
+@router.post("/theme-mode", summary="修改主题模式")
+async def change_theme_mode(
+    req: UpdateThemeModeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """修改用户主题模式（0-浅色，1-深色，2-跟随系统）"""
+    updated_user = await update_user_theme_mode(db, current_user.id, req.theme_mode)
+    if not updated_user:
+        raise HTTPException(status_code=500, detail="主题修改失败")
+    await db.commit()
+    return success_response(message="主题模式已更新", data={"theme_mode": req.theme_mode})
 
 
 @router.post("/delete-account", summary="注销当前用户账户")

@@ -510,6 +510,9 @@
         localStorage.removeItem('user_base_info');
         localStorage.removeItem('access_token');
 
+        // 应用主题：优先从 localStorage 读取，否则默认跟随系统
+        window.initTheme();
+
         // 初始化各个模块
         initAuthTabs();
         bindCommentEvents();

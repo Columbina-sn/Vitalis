@@ -190,6 +190,9 @@
         if (!forceRefresh) {
             const cached = getUserBaseCache();
             if (cached && cached.avatar && typeof cached.has_seen_intro !== 'undefined') {
+                // 使用缓存的主题模式，但也要应用主题
+                const themeMode = cached.theme_mode != null ? cached.theme_mode : 2;
+                applyTheme(themeMode);
                 return cached;
             }
         }
@@ -197,7 +200,18 @@
             const data = await window.http({ method: 'GET', url: '/user/base-info', needAuth: true });
             if (data) {
                 setUserBaseCache(data.avatar, data.has_seen_intro);
-                return { avatar: data.avatar, has_seen_intro: data.has_seen_intro };
+                // 存储 theme_mode 到缓存和本地
+                const theme = data.theme_mode != null ? data.theme_mode : 2;
+                localStorage.setItem('user_theme_mode', theme); // 备用
+                // 更新缓存对象（需修改 setUserBaseCache 支持 theme_mode）
+                // 简便做法：扩展 cache 对象
+                const cached = getUserBaseCache();
+                if (cached) {
+                    cached.theme_mode = theme;
+                    localStorage.setItem('user_base_info', JSON.stringify(cached));
+                }
+                applyTheme(theme);
+                return { avatar: data.avatar, has_seen_intro: data.has_seen_intro, theme_mode: theme };
             }
         } catch (err) {
             console.warn('获取基础信息失败', err);
@@ -760,6 +774,29 @@
     }
 
     // ================================================================
+    //  1.12 修改主题模式 (POST /user/theme-mode)
+    // ================================================================
+    async function changeTheme(mode) {
+        try {
+            await window.http({
+                method: 'POST',
+                url: '/user/theme-mode',
+                data: { theme_mode: mode },
+                needAuth: true
+            });
+            applyTheme(mode);
+            const cached = getUserBaseCache();
+            if (cached) {
+                cached.theme_mode = mode;
+                localStorage.setItem('user_base_info', JSON.stringify(cached));
+            }
+            window.showToast('主题已更新', 1500);
+        } catch (err) {
+            window.showToast('主题切换失败: ' + err.message, 2000);
+        }
+    }
+
+    // ================================================================
     //  用户相关事件绑定
     // ================================================================
     function bindUserEvents() {
@@ -780,6 +817,13 @@
         profileModal.addEventListener('click', (e) => {
             if (e.target === profileModal) profileModal.style.display = 'none';
         });
+
+        const themeLightBtn = document.getElementById('themeLightBtn');
+        const themeDarkBtn = document.getElementById('themeDarkBtn');
+        const themeAutoBtn = document.getElementById('themeAutoBtn');
+        if (themeLightBtn) themeLightBtn.addEventListener('click', () => changeTheme(0));
+        if (themeDarkBtn) themeDarkBtn.addEventListener('click', () => changeTheme(1));
+        if (themeAutoBtn) themeAutoBtn.addEventListener('click', () => changeTheme(2));
 
         // 注销账号
         profileLogoutBtn.addEventListener('click', handleDeleteAccount);

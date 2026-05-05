@@ -299,3 +299,12 @@ async def get_user_schedules(db: AsyncSession, user_id: int) -> dict:
         "uncompleted": uncompleted,
         "completed": completed
     }
+
+
+async def update_user_theme_mode(db: AsyncSession, user_id: int, theme_mode: int) -> Optional[User]:
+    """更新用户主题模式设置"""
+    user = await db.get(User, user_id)
+    if user:
+        user.theme_mode = theme_mode
+        await db.flush()
+    return user

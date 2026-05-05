@@ -145,8 +145,7 @@ async def add_or_update_memory_anchor(
             user_id=user_id,
             anchor_type=anchor_type,
             content=content,
-            confidence=confidence,
-            last_mentioned_at=datetime.now()
+            confidence=confidence
         )
         db.add(anchor)
         await db.flush()
@@ -283,8 +282,7 @@ async def add_emotion_shift(
     """
     shift = EmotionShift(
         user_id=user_id,
-        emotion_change_detail=emotion_change_detail,
-        trigger_keywords=trigger_keywords
+        emotion_change_detail=emotion_change_detail
     )
     db.add(shift)
     await db.flush()

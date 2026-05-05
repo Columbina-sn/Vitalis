@@ -964,6 +964,10 @@
       window.location.href = '/HTML/Index/index.html';
       return;
     }
+
+    // 应用主题（管理员页面不需要 token 获取 theme_mode，使用 localStorage 缓存）
+    window.initTheme();
+    
     setDefaultDates();
     await checkDailySummaryStatus();
     await switchTab('users');

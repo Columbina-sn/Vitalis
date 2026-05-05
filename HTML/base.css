@@ -20,3 +20,681 @@ a {
     color: #333;
     text-decoration: none;
 }
+
+
+/* ================================================================
+   深色模式外观补丁（追加在 base.css 末尾，无需修改其他 CSS 文件）
+   使用 body[data-theme="dark"] 直接覆盖硬编码颜色
+   ================================================================ */
+body[data-theme="dark"] {
+  background-color: #1a1a1a;
+}
+
+/* 背景条纹改为暗色调 */
+body[data-theme="dark"] .bg {
+  background: #2c2a25 !important;
+}
+
+/* ===== 首页 ===== */
+/* 评论卡片 */
+body[data-theme="dark"] .comment {
+  background: #252220 !important;
+  border-color: #4a4132 !important;
+  box-shadow: 0 20px 35px rgba(0,0,0,0.4) !important;
+}
+body[data-theme="dark"] .comment h2 {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .comment-item {
+  background: rgba(40,36,30,0.95) !important;
+  border-color: #4a4132 !important;
+}
+body[data-theme="dark"] .comment-item:hover {
+  background: #3a342e !important;
+}
+body[data-theme="dark"] .comment-content {
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .comment-meta {
+  color: #8a7a60 !important;
+  border-top-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .comment-submit {
+  background: #2b2720 !important;
+  border-color: #4a4132 !important;
+}
+body[data-theme="dark"] .comment-submit textarea {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .comment-submit textarea:focus {
+  border-color: #a6855a !important;
+  box-shadow: 0 0 30px 4px rgba(166,133,90,0.15) inset, 0 0 0 3px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .submit-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 3px 0 #2e261b !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .submit-btn:active {
+  box-shadow: 0 1px 0 #2e261b !important;
+}
+body[data-theme="dark"] .char-counter {
+  color: #8a7a60 !important;
+}
+
+/* 登录/注册卡片 */
+body[data-theme="dark"] .auth-overlay {
+  background-color: rgba(30,27,22,0.4) !important;
+}
+body[data-theme="dark"] .auth-card {
+  background: #2b2720 !important;
+  border-color: #4a4132 !important;
+  box-shadow: 0 25px 35px rgba(0,0,0,0.3) !important;
+}
+body[data-theme="dark"] .auth-card h2 {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .auth-tab button {
+  color: #a5987a !important;
+}
+body[data-theme="dark"] .auth-tab button.active {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .auth-input {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .auth-input:focus {
+  border-color: #a6855a !important;
+  box-shadow: 0 0 0 4px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .auth-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 4px 0 #2e261b !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .auth-btn:active {
+  transform: translateY(4px);
+  box-shadow: none !important;
+}
+body[data-theme="dark"] .auth-note,
+body[data-theme="dark"] .comment .note {
+  color: #a5957a !important;
+}
+body[data-theme="dark"] .agree-terms {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .terms-link {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .terms-link:hover {
+  color: #e8956a !important;
+}
+
+/* 二级验证弹窗 */
+body[data-theme="dark"] .second-factor-card {
+  background: #2b2720 !important;
+  border-color: #4a4132 !important;
+  box-shadow: 0 20px 35px rgba(0,0,0,0.4) !important;
+}
+body[data-theme="dark"] .second-factor-card h3 {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .modal-desc {
+  color: #a5957a !important;
+}
+body[data-theme="dark"] .modal-input {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .modal-input:focus {
+  border-color: #a6855a !important;
+  box-shadow: 0 0 0 3px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .cancel-btn {
+  background: #3a2e22 !important;
+  color: #a5957a !important;
+  box-shadow: 0 3px 0 #2e261b !important;
+}
+body[data-theme="dark"] .confirm-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 3px 0 #2e261b !important;
+}
+
+/* ===== 仪表盘 ===== */
+/* 主界面 */
+body[data-theme="dark"] .main-interface {
+  background: #252220 !important;
+  border-color: #4a4132 !important;
+  box-shadow: 0 10px 20px -10px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(100,85,60,0.5) !important;
+}
+/* 头部 */
+body[data-theme="dark"] .header {
+  background: #2b2620 !important;
+  border-bottom-color: #5a4e30 !important;
+}
+body[data-theme="dark"] .logo {
+  background: #2b2720 !important;
+  color: #d9b382 !important;
+  box-shadow: 0 2px 6px #5a4e30 !important;
+}
+body[data-theme="dark"] .logo i {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .logout-icon {
+  color: #d9b382 !important;
+}
+
+/* 日期跳转组件 */
+body[data-theme="dark"] .date-jump-inline {
+  background: rgba(35,30,22,0.7) !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .date-jump-inline-input {
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .date-jump-inline-input:focus {
+  background: #2b2720 !important;
+  box-shadow: 0 0 0 2px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .date-jump-inline-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 2px 0 #2e261b !important;
+  border-color: #5a4e3a !important;
+}
+
+/* 聊天区 */
+body[data-theme="dark"] .chat-area {
+  background: #242018 !important;
+  background-image: repeating-linear-gradient(transparent, transparent 27px, #3a3028 28px) !important;
+  border-right-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .hole {
+  background: #332e24 !important;
+  border-color: #5a4e3a !important;
+}
+
+/* 消息气泡 */
+body[data-theme="dark"] .message.left {
+  background: #2e2922 !important;
+  border-color: #4a4130 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .message.left::after {
+  background: #2e2922 !important;
+  border-left-color: #4a4130 !important;
+  border-bottom-color: #4a4130 !important;
+}
+body[data-theme="dark"] .message.right {
+  background: #383225 !important;
+  border-color: #5a4e38 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .message.right::after {
+  background: #383225 !important;
+  border-right-color: #5a4e38 !important;
+  border-bottom-color: #5a4e38 !important;
+}
+
+/* 输入区 */
+body[data-theme="dark"] .input-area {
+  background: #2b2620 !important;
+  border-top-color: #5a4e30 !important;
+}
+body[data-theme="dark"] .input-area textarea {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .input-area textarea:focus {
+  border-color: #a6855a !important;
+  box-shadow: 0 0 0 3px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .input-area button {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 3px 0 #2e261b !important;
+  border-color: #5a4e3a !important;
+}
+
+/* 右侧状态区 */
+body[data-theme="dark"] .status-board {
+  background: rgba(30,27,22,0.9) !important;
+  border-left-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .stat-item {
+  background: linear-gradient(135deg, rgba(45,40,35,0.9), rgba(35,30,25,0.7)) !important;
+}
+body[data-theme="dark"] .stat-icon {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .stat-label {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .progress-wrap {
+  background: #3a3226 !important;
+}
+/* 进度条渐变保持原有类，颜色不变亦可，不需改动 */
+
+body[data-theme="dark"] .stat-number {
+  background: #3a3226 !important;
+  color: #d9b382 !important;
+  box-shadow: 0 2px 0 #4a3f2e !important;
+}
+body[data-theme="dark"] .schedule-recent-card {
+  background: rgba(40,36,30,0.8) !important;
+}
+body[data-theme="dark"] .schedule-recent-title {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .schedule-recent-all {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .recent-schedule-item {
+  color: #d4c1a5 !important;
+}
+
+/* 日程全览区（已有部分变量，这里进一步强制） */
+body[data-theme="dark"] .schedule-full-view {
+  background: rgba(35,30,22,0.8) !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .schedule-half-title {
+  color: #d4c1a5 !important;
+}
+/* 单条日程卡片 - 不覆盖 border-left-color，保留各类型的颜色 */
+body[data-theme="dark"] .schedule-item {
+  background: rgba(30,28,24,0.85) !important;
+}
+body[data-theme="dark"] .schedule-item-title {
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .schedule-item-time,
+body[data-theme="dark"] .schedule-item-desc {
+  color: #8a7a60 !important;
+}
+
+/* 未完成侧背景：暗蓝灰渐变 */
+body[data-theme="dark"] .schedule-uncompleted {
+  background: linear-gradient(180deg, #1e272e 0%, #1a2327 100%) !important;
+  border-right-color: #3a4a4e !important;
+}
+
+/* 已完成侧背景：暗黄灰渐变 */
+body[data-theme="dark"] .schedule-completed {
+  background: linear-gradient(180deg, #2b2a1a 0%, #222015 100%) !important;
+}
+
+/* 已完成日程透明度微调 */
+body[data-theme="dark"] .schedule-completed .schedule-item {
+  opacity: 0.65;
+}
+
+/* 分割线 */
+body[data-theme="dark"] .divider-long {
+  background: rgba(60,50,35,0.8) !important;
+  color: #cbb295 !important;
+}
+body[data-theme="dark"] .divider-short {
+  background: rgba(50,45,35,0.6) !important;
+  color: #a5957a !important;
+}
+
+/* 弹窗通用 */
+body[data-theme="dark"] .story-card,
+body[data-theme="dark"] .profile-card,
+body[data-theme="dark"] .custom-confirm-box,
+body[data-theme="dark"] .date-history-card {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .story-modal,
+body[data-theme="dark"] .profile-modal,
+body[data-theme="dark"] .custom-confirm-overlay {
+  background: rgba(0,0,0,0.7) !important;
+}
+body[data-theme="dark"] .story-text {
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .story-text strong {
+  color: #e0c090 !important;
+}
+body[data-theme="dark"] .story-footer input {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .story-footer input:focus {
+  border-color: #a6855a !important;
+  box-shadow: 0 0 0 4px rgba(166,133,90,0.2) !important;
+}
+body[data-theme="dark"] .story-footer button {
+  background: #4a3f2e !important;
+  box-shadow: 0 4px 0 #2e261b !important;
+  border-color: #5a4e3a !important;
+  color: #d9b382 !important;
+}
+
+body[data-theme="dark"] .profile-field {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .profile-field i {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .profile-export-btn {
+  background: #2e3a28 !important;
+  color: #a5c090 !important;
+}
+body[data-theme="dark"] .profile-logout-btn {
+  background: #4a2e22 !important;
+  color: #e8956a !important;
+}
+body[data-theme="dark"] .confirm-yes {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .confirm-no {
+  background: #3a2e22 !important;
+  color: #a5957a !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .change-pwd-input {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .chart-modal-box {
+  background: #2b2720 !important;
+}
+
+/* 头像悬停等 */
+body[data-theme="dark"] .avatar-link {
+  background: #3a3022 !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .avatar-link:hover {
+  background: #4a3f2e !important;
+}
+
+/* 回到顶部按钮 */
+body[data-theme="dark"] .back-to-top-btn {
+  background: rgba(80,70,50,0.85) !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+
+/* ===== 管理后台 ===== */
+body[data-theme="dark"] .admin-badge {
+  background: #5a4e30 !important;
+  color: #2b261c !important;
+}
+body[data-theme="dark"] .data-area {
+  background: #242018 !important;
+  background-image: repeating-linear-gradient(transparent, transparent 27px, #3a3028 28px) !important;
+  border-right-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .tab-btn {
+  color: #a5987a !important;
+}
+body[data-theme="dark"] .tab-btn i {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .tab-btn:hover {
+  background: #3a3226 !important;
+}
+body[data-theme="dark"] .tab-btn.active {
+  background: #4a3f2e !important;
+  box-shadow: 0 2px 0 #2e261b !important;
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .table-wrapper {
+  background: rgba(30,27,22,0.5) !important;
+}
+body[data-theme="dark"] .admin-table th {
+  background: #3a3226 !important;
+  color: #d9b382 !important;
+  border-bottom-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .admin-table td {
+  border-bottom-color: #4a4132 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .admin-table tbody tr:hover {
+  background: #2e2820 !important;
+}
+body[data-theme="dark"] .page-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 2px 0 #2e261b !important;
+}
+body[data-theme="dark"] .action-area {
+  background: rgba(30,27,22,0.95) !important;
+  border-left-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .stat-card,
+body[data-theme="dark"] .action-card {
+  background: #2b2720 !important;
+  border-color: #4a4132 !important;
+}
+body[data-theme="dark"] .stat-card i {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .stat-label {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .stat-value {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .card-header {
+  color: #d9b382 !important;
+  border-bottom-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .input-row label {
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .input-row input {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .primary-btn {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+  box-shadow: 0 3px 0 #2e261b !important;
+}
+body[data-theme="dark"] .secondary-btn {
+  background: #2e3a28 !important;
+  color: #a5c090 !important;
+  box-shadow: 0 2px 0 #1c2618 !important;
+}
+body[data-theme="dark"] .btn-warning {
+  background: #4a2e22 !important;
+  color: #e8956a !important;
+  box-shadow: 0 2px 0 #2e1c14 !important;
+}
+body[data-theme="dark"] .invite-result {
+  background: #242018 !important;
+}
+body[data-theme="dark"] .invite-code-item {
+  background: #2b2720 !important;
+  border-color: #4a4132 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .copy-invite {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .admin-log-item {
+  background: #2b2720 !important;
+  border-left-color: #d9b382 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .admin-log-time {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .action-icon {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .phone-toggle {
+  border-bottom-color: #d9b382 !important;
+}
+body[data-theme="dark"] .edit-input,
+body[data-theme="dark"] .edit-textarea {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+
+/* 聊天浮动滚动按钮 */
+body[data-theme="dark"] .chat-scroll-btn {
+  background: rgba(60,50,35,0.6) !important;
+  border-color: rgba(150,130,100,0.5) !important;
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .chat-scroll-btn:hover {
+  background: rgba(80,70,50,0.8) !important;
+}
+
+/* Toast（之前在base.css已有变量，确保生效） */
+body[data-theme="dark"] .toast-card {
+  background: rgba(200,190,170,0.95) !important;
+  color: #2b261c !important;
+  border-left-color: #a6855a !important;
+}
+
+/* 进度条填充颜色在深色下微调（保持可读） */
+body[data-theme="dark"] .fill-physical { background: linear-gradient(90deg, #ff9bc1, #d0609a) !important; }
+body[data-theme="dark"] .fill-emotional { background: linear-gradient(90deg, #ff914d, #c2501e) !important; }
+body[data-theme="dark"] .fill-relation { background: linear-gradient(90deg, #7fd67e, #1c5e55) !important; }
+body[data-theme="dark"] .fill-worth { background: linear-gradient(90deg, #e6d264, #b38a1c) !important; }
+body[data-theme="dark"] .fill-meaning { background: linear-gradient(90deg, #6db3f2, #2c5f9e) !important; }
+body[data-theme="dark"] .fill-phi { background: linear-gradient(90deg, #9b72b0, #3a2e44) !important; }
+
+/* 修复个别组件可能残留白色文字 */
+body[data-theme="dark"] .comment-empty,
+body[data-theme="dark"] .comment-loading,
+body[data-theme="dark"] .comment-nomore {
+  color: #8a7a60 !important;
+  background: #2b2720 !important;
+}
+body[data-theme="dark"] .top-tip {
+  background: rgba(60,50,35,0.7) !important;
+  color: #a5957a !important;
+}
+body[data-theme="dark"] #chartTitle,
+body[data-theme="dark"] #dateHistoryTitle h3,
+body[data-theme="dark"] .change-pwd-title {
+  color: #d9b382 !important;
+}
+
+/* 深色模式滚动条（通用 + 精确匹配 body） */
+body[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #2b261c !important;
+}
+body[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #5a4e3a !important;
+  border-radius: 10px;
+}
+/* 确保 body 自身的滚动条生效 */
+body[data-theme="dark"]::-webkit-scrollbar-track {
+  background: #2b261c !important;
+}
+body[data-theme="dark"]::-webkit-scrollbar-thumb {
+  background: #5a4e3a !important;
+  border-radius: 10px;
+}
+
+/* 登录卡片的太阳改成月亮 */
+body[data-theme="dark"] .auth-card::after {
+  content: '🌙' !important;
+}
+/* 评论卡片左下角叶子降低透明度 */
+body[data-theme="dark"] .comment::before {
+  opacity: 0.1;
+}
+
+/* 主题切换按钮深色调 */
+body[data-theme="dark"] .theme-btn {
+  background: #2b2720;
+  border-color: #5a4e3a;
+  color: #d4c1a5;
+}
+body[data-theme="dark"] .theme-btn:hover {
+  background: #3a3226;
+}
+/* active 状态（全局可用，深色浅色均适用） */
+.theme-btn.active {
+  background: #4a3f2e !important;
+  border-color: #d9b382 !important;
+  color: #d9b382 !important;
+  box-shadow: 0 0 0 2px rgba(217,179,130,0.4);
+}
+
+/* 管理员回复区域深色 */
+body[data-theme="dark"] .admin-reply-section {
+  background: rgba(45, 40, 35, 0.85) !important;  /* 暗暖背景 */
+  border-left-color: #a6855a !important;           /* 降低橙色亮度 */
+}
+body[data-theme="dark"] .admin-reply-label {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .admin-reply-content {
+  color: #d4c1a5 !important;
+}
+
+/* 管理后台页码跳转输入框 */
+body[data-theme="dark"] #pageJumpInput {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+/* 管理后台日期范围输入框 */
+body[data-theme="dark"] #logStartDate,
+body[data-theme="dark"] #logEndDate {
+  background: #2b2720 !important;
+  border-color: #5a4e3a !important;
+  color: #d4c1a5 !important;
+}
+/* 日期选择器的日历图标颜色适配（Webkit） */
+body[data-theme="dark"] #logStartDate::-webkit-calendar-picker-indicator,
+body[data-theme="dark"] #logEndDate::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(1) saturate(0.5) hue-rotate(320deg);
+}
+
+/* 日期历史弹窗深色适配 */
+body[data-theme="dark"] .date-history-messages {
+  background: #242018 !important;
+  background-image: repeating-linear-gradient(transparent, transparent 27px, #3a3028 28px) !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .date-history-messages .message.left {
+  background: #2e2922 !important;
+  border-color: #4a4130 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .date-history-messages .message.left::after {
+  background: #2e2922 !important;
+  border-left-color: #4a4130 !important;
+  border-bottom-color: #4a4130 !important;
+}
+body[data-theme="dark"] .date-history-messages .message.right {
+  background: #383225 !important;
+  border-color: #5a4e38 !important;
+  color: #d4c1a5 !important;
+}
+body[data-theme="dark"] .date-history-messages .message.right::after {
+  background: #383225 !important;
+  border-right-color: #5a4e38 !important;
+  border-bottom-color: #5a4e38 !important;
+}
