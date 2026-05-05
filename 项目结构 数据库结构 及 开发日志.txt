@@ -79,6 +79,9 @@ Vitalis/
       * has_seen_intro：是否看过新手引导（0=没看过，1=看过）
       * can_login：是否允许登录，TINYINT(1)，默认值为 1（允许）。用于管理员后台控制用户登录权限（例如禁用违规账号）。
       * invite_code：注册时使用的邀请码
+      * current_token（VARCHAR(500)，可为空）：存储用户当前有效的 JWT 令牌，用于实现单设备登录或会话管理。
+      * current_login_ip（VARCHAR(45)，可为空）：记录用户最近一次登录的 IP 地址，便于账户安全审计。
+      * theme_mode（TINYINT UNSIGNED，非空，默认值 2）：主题模式设置，枚举值 0=浅色模式，1=深色模式，2=跟随系统（默认）。
       * created_at：注册时间
       * updated_at：信息最后更新时间
 
@@ -100,7 +103,6 @@ Vitalis/
       * id：主键，自增
       * user_id：用户编号（关联用户表，级联删除）
       * emotion_change_detail：情绪变化的详细描述（TEXT）
-      * trigger_keywords：触发该情绪转折的关键词，逗号分隔（最长500字符）
       * created_at：创建时间
       * updated_at：更新时间
     - 索引：(user_id, created_at)
@@ -187,10 +189,9 @@ Vitalis/
       * anchor_type：锚点类型（如 habit、preference、relationship 等，最长32字符）
       * content：锚点内容（TEXT）
       * confidence：AI 对该信息的确定程度（DECIMAL(3,2)，0.00-1.00，默认0.00）
-      * last_mentioned_at：最后提及时间（可为空）
       * created_at：创建时间
       * updated_at：更新时间
-    - 索引：(user_id, anchor_type) 和 (user_id, last_mentioned_at)
+    - 索引：(user_id, anchor_type)
     - 约束：confidence 范围检查
 
 12. 用户日程表（user_schedule）
@@ -1610,6 +1611,8 @@ Vitalis/
 - 才发现其实情感ai对一些东西的了解都不是很重要——因为ai很喜欢编，那就让他编好了，反正后台工作ai会处理的。
 
 - 响应式投降，做不来，做不好，手机端AWWBWG。
+
+5.5
 
 
 ----------==========问题与解决==========----------

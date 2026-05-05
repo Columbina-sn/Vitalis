@@ -38,6 +38,9 @@ class User(Base):
     has_seen_intro: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已看过引导介绍")
     can_login: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="是否允许登录")
     invite_code: Mapped[Optional[str]] = mapped_column(String(15), comment="用户注册时使用的邀请码")
+    current_token: Mapped[Optional[str]] = mapped_column(String(500), comment="当前登录JWT令牌")
+    current_login_ip: Mapped[Optional[str]] = mapped_column(String(45), comment="当前登录IP地址")
+    theme_mode: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=2, comment="主题模式：0-浅色，1-深色，2-跟随系统")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -221,8 +224,6 @@ class AdminLog(Base):
         return f"<AdminLog(id={self.id}, admin='{self.admin_phone}', action='{self.action_type}')>"
 
 
-# ---------- 以下为本次新增模型，与原有模型完全解耦 ----------
-
 class EmotionShift(Base):
     """情绪转折表（替代原 event）"""
     __tablename__ = 'emotion_shifts'
@@ -239,7 +240,6 @@ class EmotionShift(Base):
         comment="所属用户ID"
     )
     emotion_change_detail: Mapped[str] = mapped_column(Text, nullable=False, comment="情绪变化的详细描述")
-    trigger_keywords: Mapped[Optional[str]] = mapped_column(String(500), comment="触发该情绪转折的关键词，以逗号分隔")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -275,7 +275,6 @@ class MemoryAnchor(Base):
 
     __table_args__ = (
         Index('idx_user_anchor_type', 'user_id', 'anchor_type'),
-        Index('idx_user_last_mentioned', 'user_id', 'last_mentioned_at'),
         CheckConstraint('confidence >= 0 AND confidence <= 1', name='chk_confidence_range'),
     )
 
@@ -288,9 +287,7 @@ class MemoryAnchor(Base):
     )
     anchor_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="锚点类型（如 habit, preference 等）")
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="锚点内容")
-    confidence: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), nullable=False, default=0.0,
-                                                 comment="AI 对这条信息的确定程度 (0.00-1.00)")
-    last_mentioned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="最后提及时间")
+    confidence: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), nullable=False, default=0.0, comment="AI 对这条信息的确定程度 (0.00-1.00)")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
