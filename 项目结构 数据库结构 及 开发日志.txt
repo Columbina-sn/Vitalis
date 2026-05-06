@@ -207,6 +207,19 @@ Vitalis/
       * updated_at：更新时间
     - 索引：(user_id, scheduled_time) 和 (user_id, is_completed)
 
+13. 登录历史表（login_history）
+    - 记录用户每次登录的会话信息，支持多设备管理、会话失效与安全审计。
+    - 字段：
+      * id：主键，自增 BIGINT
+      * user_id：用户编号（关联 users 表，级联删除）
+      * login_ip：登录时的客户端 IP
+      * location：IP 解析的城市名（如“江西南昌”），可为空，预留足够长度以支持国外城市
+      * device_info：从 User-Agent 解析的设备/浏览器简称，可为空
+      * token_jti：JWT 的唯一标识符（JWT ID），用于精确废除单个会话，唯一约束
+      * is_valid：会话有效性（TINYINT(1)，默认 1=有效，0=已退出/被挤下线）
+      * created_at：登录时间
+    - 索引：唯一索引 uq_token_jti (token_jti)；普通索引 idx_user_valid (user_id, is_valid)
+
 - 外键关联：用户状态、事件、对话历史都关联到用户表，删除用户时这些数据也会自动删除（级联删除）。
 - 邀请码表独立，不关联用户。
 
@@ -1695,6 +1708,14 @@ Vitalis/
   · 现象：用户说“晚上要去义务当观众看无聊的彩排~~~”后，工作 AI 自动创建了标题为“义务当观众看彩排”的 short_task 日程；
   · 原因：提示词未区分“真实的计划”和“随口抱怨的临时安排”；
   · 解决：在 productivityAI 的日程创建规则中增加过滤条款，禁止为明显消极、被动、无奈性质的临时事件创建日程；后续路由层可配合关键词拦截作为兜底。
+
+- 新增登录历史与会话管理数据层，为安全审计与多设备登录做准备：
+  · 新建 login_history 表：记录用户每次登录的 IP、设备信息、IP 解析城市、JWT 唯一标识 (jti) 及会话有效性，支持精确废除指定会话。
+    包含唯一索引 uq_token_jti 及普通索引 idx_user_valid，通过外键关联 users 表并级联删除。
+  · users 表字段调整：原 current_token 更名为 current_token_jti (VARCHAR128)，用于存储 JTI 而非完整令牌；新增 current_location 字段 (VARCHAR100)，存放最近登录城市信息，与 current_login_ip 配套展示。
+  · 同步更新 models.py（新增 LoginHistory 模型，调整 User 模型字段）、完整初始化 SQL 至 v2.2 版本，并提供基于已有数据库的一次性升级脚本。
+
+明天满课，后天做登录安全升级。
 
 
 ----------==========问题与解决==========----------

@@ -21,11 +21,12 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(64) NOT NULL COMMENT '登录密码',
     nickname VARCHAR(15) DEFAULT NULL COMMENT '昵称',
     avatar VARCHAR(500) DEFAULT '/static_pic/default_avatar.jpg' COMMENT '头像URL',
-    has_seen_intro TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已看过引导介绍（0-未看，1-已看）',
-    can_login TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否允许登录（0-禁止，1-允许）',
-    invite_code VARCHAR(8) DEFAULT NULL COMMENT '用户注册时使用的邀请码',
-    current_token VARCHAR(500) DEFAULT NULL COMMENT '当前登录JWT令牌',
+    has_seen_intro TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已看过引导介绍',
+    can_login TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否允许登录',
+    invite_code VARCHAR(8) DEFAULT NULL COMMENT '注册时使用的邀请码',
+    current_token_jti VARCHAR(128) DEFAULT NULL COMMENT '当前会话JWT唯一ID',
     current_login_ip VARCHAR(45) DEFAULT NULL COMMENT '当前登录IP地址',
+    current_location VARCHAR(100) DEFAULT NULL COMMENT '最近登录的城市信息',
     theme_mode TINYINT UNSIGNED NOT NULL DEFAULT 2 COMMENT '主题模式：0-浅色，1-深色，2-跟随系统',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -230,3 +231,21 @@ CREATE TABLE IF NOT EXISTS user_schedule (
     KEY idx_user_completed (user_id, is_completed),
     CONSTRAINT fk_user_schedule_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户日程表';
+
+-- -------------------------------------------
+-- 13. 登录历史表
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS login_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    user_id INT UNSIGNED NOT NULL COMMENT '关联用户ID',
+    login_ip VARCHAR(45) NOT NULL COMMENT '登录IP',
+    location VARCHAR(100) DEFAULT NULL COMMENT 'IP解析的城市（如“江西南昌”，预留足够长度支持国外城市）',
+    device_info VARCHAR(200) DEFAULT NULL COMMENT '从User-Agent解析的设备/浏览器名称',
+    token_jti VARCHAR(128) NOT NULL COMMENT 'JWT唯一标识',
+    is_valid TINYINT(1) NOT NULL DEFAULT 1 COMMENT '会话是否有效（1=有效，0=已退出/挤下线）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_token_jti (token_jti),
+    KEY idx_user_valid (user_id, is_valid),
+    CONSTRAINT fk_login_history_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录历史表';

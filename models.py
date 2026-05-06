@@ -36,8 +36,9 @@ class User(Base):
     has_seen_intro: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已看过引导介绍")
     can_login: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="是否允许登录")
     invite_code: Mapped[Optional[str]] = mapped_column(String(15), comment="用户注册时使用的邀请码")
-    current_token: Mapped[Optional[str]] = mapped_column(String(500), comment="当前登录JWT令牌")
+    current_token_jti: Mapped[Optional[str]] = mapped_column(String(128), comment="当前会话JWT唯一ID")
     current_login_ip: Mapped[Optional[str]] = mapped_column(String(45), comment="当前登录IP地址")
+    current_location: Mapped[Optional[str]] = mapped_column(String(100), comment="最近登录的城市信息")
     theme_mode: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=2, comment="主题模式：0-浅色，1-深色，2-跟随系统")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
@@ -319,3 +320,30 @@ class UserSchedule(Base):
 
     def __repr__(self):
         return f"<UserSchedule(id={self.id}, type='{self.schedule_type}', title='{self.title}')>"
+
+
+class LoginHistory(Base):
+    """登录历史表"""
+    __tablename__ = 'login_history'
+
+    __table_args__ = (
+        Index('uq_token_jti', 'token_jti', unique=True),
+        Index('idx_user_valid', 'user_id', 'is_valid'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="主键ID")
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE', onupdate='CASCADE'),
+        nullable=False,
+        comment="关联用户ID"
+    )
+    login_ip: Mapped[str] = mapped_column(String(45), nullable=False, comment="登录IP")
+    location: Mapped[Optional[str]] = mapped_column(String(100), comment="IP解析的城市")
+    device_info: Mapped[Optional[str]] = mapped_column(String(200), comment="设备/浏览器信息")
+    token_jti: Mapped[str] = mapped_column(String(128), nullable=False, comment="JWT唯一标识")
+    is_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="会话是否有效")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="登录时间")
+
+    def __repr__(self):
+        return f"<LoginHistory(id={self.id}, user_id={self.user_id}, jti='{self.token_jti}')>"
