@@ -109,7 +109,8 @@ def build_messages(
      - 若有具体钟点（如“下午三点”“晚上八点”）→ 映射为24小时制（15:00、20:00），填入 YYYY-MM-DDTHH:MM。
      - 若只有日期没有钟点 → 默认使用 **09:00**（如 "2026-05-05T09:00"）。
      - 如果完全没有时间指向（如“我要复习”且未提何时）→ scheduled_time 设为 **null**。
-   - 编辑 (`schedule_edits`): 若用户要求修改已有日程，（或你注意到有日程已经到时间了可以改为已完成new_completed:"true"），每项包含 title(原标题，用于匹配)、new_title、new_description、new_scheduled_time、new_type、new_completed 等要修改的字段。可一次编辑多个。
+     - 过滤原则：如果用户描述的只是当下的抱怨、临时安排或无法回避的杂事，且语气明显消极（如“义务”“无奈”“被拉去”等），不要创建日程。日程应留给用户真正想完成或记住的事项。
+   - 编辑 (`schedule_edits`): 若用户要求修改已有日程，每项包含 title(原标题，用于匹配)、new_title、new_description、new_scheduled_time、new_type、new_completed 等要修改的字段。可一次编辑多个。
    - 删除 (`schedule_deletes`): 若用户要求删除，每项包含 title。可一次删除多个。
    {schedules_text}
    {comp_text}

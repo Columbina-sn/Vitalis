@@ -19,8 +19,6 @@ class RoleEnum(str, enum.Enum):
     assistant = "assistant"
 
 
-# --------------- 原有模型，一字未改 ---------------
-
 class User(Base):
     __tablename__ = 'users'
 

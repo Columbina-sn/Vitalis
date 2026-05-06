@@ -431,3 +431,48 @@ async def delete_schedule(db: AsyncSession, schedule_id: int) -> bool:
     await db.delete(schedule)
     await db.flush()
     return True
+
+
+DEFERRABLE_TYPES = {"anniversary", "birthday"}  # 这些类型的日程不自动完成，而是延后到下一年
+
+
+async def auto_complete_due_schedules(db: AsyncSession, user_id: int) -> None:
+    """到期的任务型日程自动完成，已过的纪念日/生日延后一年"""
+    now = datetime.now()
+
+    # 1. 自动完成任务型日程（排除纪念日/生日）
+    task_stmt = select(UserSchedule).where(
+        UserSchedule.user_id == user_id,
+        UserSchedule.is_completed == False,
+        UserSchedule.scheduled_time.isnot(None),
+        UserSchedule.scheduled_time <= now,
+        UserSchedule.schedule_type.notin_(DEFERRABLE_TYPES)
+    )
+    task_result = await db.execute(task_stmt)
+    tasks = task_result.scalars().all()
+    for t in tasks:
+        t.is_completed = True
+        t.updated_at = now
+
+    # 2. 延后已过的纪念日/生日到下一年
+    deferred_stmt = select(UserSchedule).where(
+        UserSchedule.user_id == user_id,
+        UserSchedule.is_completed == False,
+        UserSchedule.scheduled_time.isnot(None),
+        UserSchedule.scheduled_time <= now,
+        UserSchedule.schedule_type.in_(DEFERRABLE_TYPES)
+    )
+    deferred_result = await db.execute(deferred_stmt)
+    deferred_schedules = deferred_result.scalars().all()
+    for s in deferred_schedules:
+        new_time = s.scheduled_time
+        try:
+            new_time = new_time.replace(year=new_time.year + 1)
+        except ValueError:
+            # 处理闰年2月29日，改为次年3月1日，保留时分秒
+            new_time = new_time.replace(year=new_time.year + 1, month=3, day=1)
+        s.scheduled_time = new_time
+        s.updated_at = now
+
+    if tasks or deferred_schedules:
+        await db.flush()

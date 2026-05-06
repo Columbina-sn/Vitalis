@@ -23,7 +23,7 @@ from crud.chat import (
     check_recent_similar_schedule,
     check_recent_duplicate_emotion_shift,
     update_schedule,
-    delete_schedule,
+    delete_schedule, auto_complete_due_schedules,
 )
 from ai.empathyAI import build_messages as empathy_build_messages, analog_ai as empathy_analog_ai
 from ai.productivityAI import build_messages as productivity_build_messages, analog_ai as productivity_analog_ai
@@ -50,13 +50,16 @@ async def receive_user_message(
     if user_info is None:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    # 2. 准备日程映射
+    # 2. 自动完成到期日程
+    await auto_complete_due_schedules(db, current_user.id)
+
+    # 3. 准备日程映射
     upcoming = user_info.get("upcoming_schedules", [])
     schedule_map = {}
     for sch in upcoming:
         schedule_map.setdefault(sch.title, []).append(sch)
 
-    # 3. 并行调用情感 AI 与工作 AI
+    # 4. 并行调用情感 AI 与工作 AI
     empathy_msgs = empathy_build_messages(req.message, user_info)
     prod_msgs = productivity_build_messages(req.message, user_info)
     debug_print(empathy_msgs)
@@ -71,10 +74,10 @@ async def receive_user_message(
 
     empathy_reply = empathy_result["reply"]
 
-    # 4. 记录用户消息
+    # 5. 记录用户消息
     await add_conversation_history(db, current_user.id, RoleEnum.user, req.message)
 
-    # 5. 更新五维状态
+    # 6. 更新五维状态
     status_changes = prod_result.get("status_changes", {})
     if status_changes:
         await update_user_status(db, current_user.id, status_changes)
@@ -82,13 +85,13 @@ async def receive_user_message(
         if updated_status:
             status_changes["psychological_harmony_index"] = updated_status.psychological_harmony_index
 
-    # 6. 记录情绪转折
+    # 7. 记录情绪转折
     if prod_result.get("should_add_emotion_shifts") and prod_result["emotion_shifts_summary"]:
         detail = prod_result["emotion_shifts_summary"]
         if not await check_recent_duplicate_emotion_shift(db, current_user.id, detail):
             await add_emotion_shift(db, current_user.id, emotion_change_detail=detail)
 
-    # 7. 更新用户画像
+    # 8. 更新用户画像
     if prod_result.get("should_update_anchors") and prod_result["new_anchors"]:
         for anchor_data in prod_result["new_anchors"]:
             if isinstance(anchor_data, str):
@@ -100,7 +103,7 @@ async def receive_user_message(
                 confidence=anchor_data.get("confidence", 0.5),
             )
 
-    # 8. 创建新日程
+    # 9. 创建新日程
     if prod_result.get("should_create_schedule") and prod_result.get("new_schedules"):
         for sched in prod_result["new_schedules"]:
             if not sched.get("title"):
@@ -125,7 +128,7 @@ async def receive_user_message(
                     scheduled_time=scheduled_time,
                 )
 
-    # 9. 编辑日程（精确+模糊匹配，静默处理）
+    # 10. 编辑日程（精确+模糊匹配，静默处理）
     if prod_result.get("schedule_edits"):
         for edit in prod_result["schedule_edits"]:
             old_title = edit.get("title", "")
@@ -160,7 +163,7 @@ async def receive_user_message(
                 if updates:
                     await update_schedule(db, target.id, updates)
 
-    # 10. 删除日程（静默处理）
+    # 11. 删除日程（静默处理）
     if prod_result.get("schedule_deletes"):
         for del_item in prod_result["schedule_deletes"]:
             title_to_del = del_item.get("title", "")
@@ -180,15 +183,20 @@ async def receive_user_message(
             if target:
                 await delete_schedule(db, target.id)
 
-    # 11. 改名（仅执行数据库操作，不修改回复文本）
+    # 12. 改名
     update_nickname = prod_result.get("update_nickname")
     if update_nickname:
         await update_user_nickname(db, current_user.id, update_nickname)
 
-    # 12. 最终回复完全使用情感 AI 的原始输出
+    # 13. 最终回复完全使用情感 AI 的原始输出
     final_reply = empathy_reply
 
-    await add_conversation_history(db, current_user.id, RoleEnum.assistant, final_reply)
+    # 14. 记录ai回复
+    await add_conversation_history(
+        db, current_user.id, RoleEnum.assistant,
+        final_reply,
+        extra_metadata=prod_result  # 将工作 AI 的完整 JSON 作为元数据存入
+    )
     await db.commit()
 
     return success_response(message="回复用户成功", data={
