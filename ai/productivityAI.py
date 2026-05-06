@@ -14,6 +14,24 @@ def build_messages(
     anchors = user_info.get("anchors", [])
     schedules = user_info.get("upcoming_schedules", [])
     completed_schedules = user_info.get("recent_completed_schedules", [])
+    recent_convs = user_info.get("recent_conversations", [])
+
+    # ---- 提取最近 2 条用户消息，用于帮助工作 AI 理解编辑/删除所指 ----
+    recent_user_lines = []
+    for msg in recent_convs:
+        if msg.role.value == 'user':
+            recent_user_lines.append(msg.content)
+            if len(recent_user_lines) >= 2:
+                break
+    # recent_convs 是倒序，这里取到的是从最近往前数两条，我们需要按时间正序（最早的在前）
+    if recent_user_lines:
+        recent_user_lines = list(reversed(recent_user_lines))   # 最早发言 → 最新发言
+        recent_user_lines.append(user_message)
+        recent_user_text = "用户最近的发言(从早到晚):\n" + "\n".join(
+            f"    {i+1}. {line}" for i, line in enumerate(recent_user_lines)
+        )
+    else:
+        recent_user_text = ""
 
     now = datetime.now()
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
@@ -50,7 +68,7 @@ def build_messages(
     schedules_text = ""
     if schedules:
         schedules_text = "未完成日程: " + ", ".join(
-            f"{sc.schedule_type}:{sc.title}"
+            f"{sc.schedule_type},title:{sc.title}"
             f"({sc.scheduled_time.strftime('%Y年%m月%d日') if sc.scheduled_time else '无固定日期'})"
             for sc in schedules
         )
@@ -61,7 +79,7 @@ def build_messages(
     comp_text = ""
     if completed_schedules:
         comp_text = "已完成日程(仅供背景参考, 非用户命令不要随意操作): " + ", ".join(
-            f"{sc.schedule_type}:{sc.title}" for sc in completed_schedules[:5]
+            f"{sc.schedule_type},title:{sc.title}" for sc in completed_schedules[:5]
         )
 
     # 日程操作警告：没有未完成日程时禁止编辑/删除
@@ -86,7 +104,9 @@ def build_messages(
 
 1. **五维状态调整** (`status_changes`)
    - 必须包含5个键: physical_vitality, emotional_tone, relationship_connection, self_worth, meaning_direction，值为整数(0-100)。
-   - 原则: 用户表达明确身体/情绪变化时立刻大幅度调整(可跨40+点)；日常闲聊微调1-3点；若未涉及则保持原值。
+   - 原则: 用户表达明确身体/情绪等变化时立刻大幅度调整(可跨40+点)；
+          日常闲聊内容只要正常不悲观伤感，缓慢增加2-5点，尤其用户只要短期内并不表现负面情绪，不要让数值长期停在60以下；
+          若未涉及则保持原值。
    - 不要输出 PHI，PHI由后台结合五维数值计算。
    - 五维的理想点位为"physical": 80, "emotional": 75, "relation": 80, "worth": 85, "meaning": 75。
 
@@ -110,10 +130,18 @@ def build_messages(
      - 若只有日期没有钟点 → 默认使用 **09:00**（如 "2026-05-05T09:00"）。
      - 如果完全没有时间指向（如“我要复习”且未提何时）→ scheduled_time 设为 **null**。
      - 过滤原则：如果用户描述的只是当下的抱怨、临时安排或无法回避的杂事，且语气明显消极（如“义务”“无奈”“被拉去”等），不要创建日程。日程应留给用户真正想完成或记住的事项。
-   - 编辑 (`schedule_edits`): 若用户要求修改已有日程，每项包含 title(原标题，用于匹配)、new_title、new_description、new_scheduled_time、new_type、new_completed 等要修改的字段。可一次编辑多个。
-   - 删除 (`schedule_deletes`): 若用户要求删除，每项包含 title。可一次删除多个。
+     
+   用户最近部分日程：（如需编辑删除，必须在下列日程中选title，不要被用户消息干扰！）
    {schedules_text}
    {comp_text}
+   - 编辑 (`schedule_edits`): 若用户要求修改已有日程，每项包含 title(原标题，用于匹配)、new_title、new_description、new_scheduled_time、new_type、new_completed 等要修改的字段。可一次编辑多个。
+     * 如果用户没有指明具体标题，但结合“用户最近的发言”可以推断所指的是哪条日程，请填写对应的 title。
+     {recent_user_text}
+
+   - 删除 (`schedule_deletes`): 若用户要求删除，每项包含 title。可一次删除多个。
+     * 如果用户没有指明具体标题，但结合“用户最近的发言”可以推断所指的是哪条日程，请填写对应的 title。
+     {recent_user_text}
+
    - 防重复/防误操作：如果同一内容在最近1小时内已存在则跳过；编辑/删除仅在 schedules 列表中存在对应标题时进行，若不确认标题可以留空 title，但不能瞎编。
 
 【输出 JSON 模板】

@@ -80,7 +80,7 @@ def _describe_status(status) -> str:
     # 整体和谐感（PHI）
     if phi >= 80:
         overall = "整体心理状态很和谐，各方面都比较平衡。"
-    elif phi >= 65:
+    elif phi >= 63:
         overall = "整体感觉还行，但可能有某一两方面需要留意。"
     elif phi >= 50:
         overall = "内心有些拉扯，好几个维度都感受到了压力。"

@@ -10,7 +10,7 @@ API_BASE = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
 MAX_JSON_FIX_RETRIES = 2      # JSON 解析失败时最多自动修正次数
-TEMPERATURE_DEFAULT = 0.2     # 工作/总结 AI 用
+TEMPERATURE_DEFAULT = 0.3     # 工作/总结 AI 用
 TEMPERATURE_EMPATHY = 0.5     # 情感 AI 用（需要一定发散度）
 MAX_TOKENS = 2000
 
