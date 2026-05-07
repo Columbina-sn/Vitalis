@@ -3,11 +3,13 @@ import os
 from fastapi import Depends, HTTPException, status  # 导入 FastAPI 的依赖项工具 Depends，用于在路由中注入依赖
 from fastapi.security import OAuth2PasswordBearer  # 导入 OAuth2 密码认证流程，用于从请求中提取 token
 from jose import JWTError  # 导入 JWT 错误类型，用于捕获 token 解析过程中的异常
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # 导入 SQLAlchemy 异步会话，用于数据库操作
 
 from config.db_conf import get_db  # 从配置模块导入获取数据库会话的函数
 from crud.auth import is_admin_login_enabled
 from crud.user import get_user_by_phone  # 从用户 CRUD 模块导入根据手机号查询用户的函数
+from models import LoginHistory
 from schemas.user import TokenData  # 从用户数据模型导入 TokenData 类，用于存放解析后的 token 数据
 from utills.security import verify_token  # 从工具模块导入验证 JWT token 的函数
 
@@ -38,7 +40,9 @@ async def get_current_user(
         # 从 payload 中获取 "sub" 字段的值，按照 JWT 规范，"sub" 通常存放用户标识，这里存放手机号
         phone: str = payload.get("sub")
         # 如果手机号不存在，说明 payload 结构不对，抛出认证异常
-        if phone is None:
+        jti: str = payload.get("jti")
+        # 检验jti
+        if phone is None or jti is None:
             raise credentials_exception
         # 将手机号封装成 TokenData 对象，方便后续使用
         token_data = TokenData(phone=phone)
@@ -57,6 +61,28 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="账号已被禁止登录"
         )
+
+    # --- 新增 JTI 一致性校验 ---
+    if user.current_token_jti != jti:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="会话已失效（已在其他设备登录）"
+        )
+
+    # --- 检查 login_history 有效性 ---
+    login_history_stmt = select(LoginHistory).where(
+        LoginHistory.token_jti == jti,
+        LoginHistory.user_id == user.id,
+        LoginHistory.is_valid == True
+    )
+    result = await db.execute(login_history_stmt)
+    login_record = result.scalar_one_or_none()
+    if login_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="会话已过期或已被注销"
+        )
+
     # 返回用户对象，FastAPI 会将其注入到需要当前用户的路由参数中
     return user
 

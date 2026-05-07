@@ -185,11 +185,11 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
                 )
                 urgent_text = (
                     f"🔔 特别提醒：接下来三天内用户有以下重要日程：{items}。"
-                    "请在对话中自然地提及或关心，但不要生硬复述，可以像朋友一样问'快到了呢'或表达较为强烈的期待/关心。"
+                    "请一定要在对话中自然地提及或关心，并且最好提的具体一些，可以像朋友一样问'快到了呢'或表达较为强烈的期待/关心。"
                 )
 
-        # 组装长期模式用户信息块，将紧急提醒放在最前面
-        user_info_block = f"{urgent_text}\n{anchor_text}\n{snapshot_text}\n{schedule_text}\n{comp_text}"
+        # 组装长期模式用户信息块，将紧急提醒放在最前面，并重复三遍
+        user_info_block = f"{urgent_text}\n{urgent_text}\n{urgent_text}\n{anchor_text}\n{snapshot_text}\n{schedule_text}\n{comp_text}"
 
     if not user_info_block.strip():
         user_info_block = "暂无用户背景信息。"

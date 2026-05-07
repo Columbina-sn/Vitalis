@@ -1124,12 +1124,20 @@ body::-webkit-scrollbar-thumb,
   padding: 8px 16px; /* 内边距 */
   border-radius: 60px; /* 大圆角 */
   border: 1px solid #f0dfbc; /* 边框 */
+  display: flex;           /* 新增：使其成为 flex 容器 */
+  align-items: center;     /* 新增：子元素垂直居中 */
   cursor: default;
   transition: transform 0.5s ease;
 }
 
 .profile-field:hover {
   transform: scale(1.05);
+}
+
+.location-help {
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: #b0a088;
 }
 
 .profile-field i {

@@ -39,6 +39,7 @@ Vitalis/
 │   ├── email_utils.py              # SMTP邮件发送工具函数
 │   ├── exception.py                # 全局异常处理函数（含 JSON 序列化修复）
 │   ├── exception_handlers.py       # 注册异常处理器到 FastAPI 应用
+│   ├── geo_utils.py                # 根据IP解析地理位置函数
 │   ├── psychological_harmony_index.py  # 心理和谐指数计算函数
 │   ├── ip_utils.py                 # 获取IP地址
 │   ├── response.py                 # 统一成功响应封装
@@ -81,6 +82,7 @@ Vitalis/
       * invite_code：注册时使用的邀请码
       * current_token（VARCHAR(500)，可为空）：存储用户当前有效的 JWT 令牌，用于实现单设备登录或会话管理。
       * current_login_ip（VARCHAR(45)，可为空）：记录用户最近一次登录的 IP 地址，便于账户安全审计。
+      * current_location 由IP地址解析地理位置
       * theme_mode（TINYINT UNSIGNED，非空，默认值 2）：主题模式设置，枚举值 0=浅色模式，1=深色模式，2=跟随系统（默认）。
       * created_at：注册时间
       * updated_at：信息最后更新时间
@@ -1717,11 +1719,44 @@ Vitalis/
 
 明天满课，后天做登录安全升级。
 
+5.7
+- 完成用户登录安全全面升级，实现基于 JWT JTI 的会话管理、登录历史审计、主动退出及异地登录提醒。
+- 增强 `utills/security.py`：新增 `create_access_token_with_jti` 函数，生成带 JTI（UUID）的 JWT，返回 (token, jti)。
+- 修改 `routers/auth.py` 注册与登录流程：
+    * 生成 token 时使用 `create_access_token_with_jti`，获取客户端 IP。
+    * 更新 `users` 表的 `current_token_jti`、`current_login_ip`、`current_location` 字段。
+    * 写入 `login_history` 记录（IP、城市、设备信息、JTI，is_valid=True），并将该用户前一条有效登录历史置为无效（is_valid=False），实现单设备登录/挤下线。
+    * 管理员登录分支保持不变（管理员无 users 记录）。
+    * 普通用户登录成功后，查询上一条已失效的 `login_history` 记录，若 IP 与本次不同，生成 `login_alert` 异地提醒文案，随 Token 一起返回。
+- 新增 `POST /user/logout` 接口（`routers/user.py`）：
+    * 验证当前用户身份后，清除 `users` 表的 `current_token_jti`、`current_login_ip`、`current_location`。
+    * 将该 JTI 对应的 `login_history` 记录标记为 `is_valid=False`，完成主动退出。
+- 强化鉴权逻辑（`core/deps.py` 的 `get_current_user`）：
+    * 从 JWT payload 中提取 `jti` 并校验与 `user.current_token_jti` 一致，若不一致则返回 “会话已失效（已在其他设备登录）”。
+    * 查询 `login_history` 表确认该 JTI 的会话为有效状态（is_valid=True），否则返回 “会话已过期或已被注销”。
+    * 管理员依赖 `get_current_admin_user` 保持原样不进行 JTI 校验。
+- 前端改动：
+    * 退出登录（`dashboard.js` 的 `handleLogout`）：改为先清除本地 token 和缓存，再异步调用 `POST /user/logout` 接口；若接口失败，仅用 Toast 提示“退出请求发送失败，但本地登录状态已清除”，不影响退出流程。
+    * 个人信息卡片（`dashboard.html` 的 `#profileModal`）：新增“登录地点”显示行，附带 `？` 悬停提示“登录地点基于网络IP解析，仅供参考”；`showProfileModal` 读取 `location` 字段进行展示。
+    * 登录成功处理（`index.js` 的 `handleLogin`）：检测返回的 `login_alert` 字段，若有值则通过 `showToast` 弹出长时间（10 秒）醒目提醒，避免用户忽略异地风险。
+- 补充 CSS：在 `dashboard.css` 末尾增加 `.location-help` 样式，与整体协调。
+
+- 关于IP解析地理位置，由于知识面空缺，目前没有找到完美的方式。
+
+- 修复登录后异地提醒因页面跳转过快导致用户来不及阅读的问题（前端 index.js）：
+  * 当检测到 login_alert 时，先展示异地提醒 10 秒，再显示“登录成功”并延迟 2 秒跳转，总时长约 12 秒，确保安全提示充分曝光。
+- 优化异地登录判断逻辑及提醒文案（后端 auth.py）：
+  * 异地判定从“IP 不同”升级为“解析城市不同”，同城网络切换不再误报。
+  * 提醒文案仅显示城市名，移除 IP 地址，用户更易理解。
+  * 若城市解析失败则降级为 IP 比较，确保不遗漏真正异地。
+- 代码重构：将 routers/auth.py 中直接操作 LoginHistory 表的逻辑封装到 crud/auth.py，新增 invalidate_previous_sessions 和 create_login_history 两个函数，路由层保持纯净。
+- 同步调整 routers/auth.py 的导入，移除冗余的 sql_update 引用。
+
 
 ----------==========问题与解决==========----------
 问题1.1：评论为公用评论区，发表评论无需登录，如何限制其频率？
     方案一：使用 Redis 有序集合或简单的计数+过期时间
-           可鉴于该项目本就不大，使用人数极少，我不太想仅为了一个功能在项目里添加新技术 pass
+           可鉴于该项目本就不大，使用人数极少，我不太想仅为了一个功能在项目里添加新技术栈 pass
     方案二：在comment表添加一列存储发送请求的IP地址 每次添加数据前都先做校验
            虽然这样会增加数据库操作量，但首先，项目性质决定了其不会有太多人使用；
            其次，评论只是一个副功能，起到及时收集反馈的作用，请求量本就不会很大。adopt

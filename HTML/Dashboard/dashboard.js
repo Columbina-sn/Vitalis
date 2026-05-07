@@ -607,10 +607,8 @@
             let errorMsg = '修改失败';
             if (err.status === 400) {
                 errorMsg = err.message || '旧密码错误或新密码无效';
-            } else if (err.status === 401) {
-                errorMsg = '登录已过期，请重新登录';
-                setTimeout(() => { window.location.href = '/HTML/Index/index.html'; }, 1500);
             } else {
+                // 注意：401 已由全局 http.js 提示并跳转，此处不必重复处理
                 errorMsg = err.message || '网络错误，请稍后重试';
             }
             window.showToast(errorMsg, 3000);
@@ -642,11 +640,8 @@
             let errorMsg = '注销失败';
             if (err.status === 400) {
                 errorMsg = err.message || '密码错误，请重试';
-            } else if (err.status === 401) {
-                errorMsg = '登录已过期，请重新登录';
-                localStorage.removeItem('access_token');
-                setTimeout(() => window.location.href = '/HTML/Index/index.html', 1500);
             } else {
+                // 401 已由全局 http.js 处理，这里不再重复清除 token 或跳转
                 errorMsg = err.message || '网络错误，请稍后重试';
             }
             window.showToast(errorMsg, 3000);
@@ -802,11 +797,40 @@
     function bindUserEvents() {
         // 退出登录
         function handleLogout() {
-            showConfirm('确定要退出登录吗？', () => {
+            showConfirm('确定要退出登录吗？', async () => {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    // 没有 token 直接跳转
+                    window.showToast('已退出登录，即将跳转...', 2000);
+                    setTimeout(() => {
+                        window.location.href = '/HTML/Index/index.html';
+                    }, 2000);
+                    return;
+                }
+
+                let success = false;
+                try {
+                    // 先通知后端使会话失效
+                    await fetch('/user/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    success = true;
+                } catch (err) {
+                    // 网络波动或后端错误
+                    console.warn('注销请求失败:', err);
+                    window.showToast('⚠️ 由于网络波动，退出请求发送失败，但本地登录状态已清除，请放心', 4000);
+                }
+
+                // 无论后端是否成功，前端都清除本地状态（用户明确要退出）
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user_base_info');
-                window.showToast('已退出登录，即将跳转...', 1500);
-                setTimeout(() => { window.location.href = '/HTML/Index/index.html'; }, 1500);
+
+                const delay = success ? 2000 : 4000; // 成功时 2 秒，失败时多留点时间读提示
+                window.showToast('已退出登录，即将跳转...', 2000);
+                setTimeout(() => {
+                    window.location.href = '/HTML/Index/index.html';
+                }, delay);
             });
         }
         logoutIconBtn.addEventListener('click', handleLogout);
@@ -902,11 +926,16 @@
     // --- 个人弹窗 ---
     async function showProfileModal() {
         try {
-            const info = await fetchUserInfo();
+            const info = await fetchUserInfo();   // 调用 /user/information
             profileNicknameSpan.innerText = info.nickname || '未设置';
             profilePhoneSpan.innerText = info.phone;
             profileInviteCodeSpan.innerText = info.invite_code || '无';
             profileAvatar.src = info.avatar || '/static_pic/default_avatar.jpg';
+            // 新增
+            const locationSpan = document.getElementById('profileLocation');
+            if (locationSpan) {
+                locationSpan.innerText = info.location || '未知';
+            }
             profileModal.style.display = 'flex';
         } catch (err) {
             window.showToast('获取个人信息失败', 2000);
@@ -1008,7 +1037,8 @@
         "如果想记什么日程的话，直接和小元说就好咯！我会记下来的。",
         "小元还有些不识字，如果记错了日程让小元改掉就好啦。删了都行。",
         "说出去的话，泼出去的水，消息一发出去，就不能撤回了哦~",
-        "（附耳）如果你觉得今天的小元有点不一样——也许是你自己的心情变了。小元是你的一面镜子，只是有点雾面。"
+        "（附耳）如果你觉得今天的小元有点不一样——也许是你自己的心情变了。小元是你的一面镜子，只是有点雾面。",
+        "小元贴心提示：养成随手退出的习惯，能让账号更安全哦~"
     ];
 
     function getRandomItem(arr) {
@@ -1322,13 +1352,13 @@
 
             let errorMsg = '抱歉，连接出现问题，请稍后再试';
             if (err.status === 401) {
-                errorMsg = '登录已过期，请重新登录';
-                setTimeout(() => { window.location.href = '/HTML/Index/index.html'; }, 1500);
+                // 全局 http.js 已处理提示和跳转，这里仅用 err.message 显示即可
+                errorMsg = err.message || '登录已过期';
             } else if (err.message) {
                 errorMsg = err.message;
             }
             addMessageWithDividers('assistant', `😥 ${errorMsg}`, new Date());
-            window.showToast(errorMsg, 3000);
+            // window.showToast(errorMsg, 5000);
         } finally {
             if (!typingStarted) {
                 isSending = false;
@@ -1519,15 +1549,10 @@
             renderDateHistoryMessages(sorted, dateValue);
         } catch (err) {
             console.error('获取历史记录失败', err);
-            let errorMsg = '加载失败，请稍后重试';
-            if (err.status === 401) {
-                errorMsg = '登录已过期，请重新登录';
-                setTimeout(() => { window.location.href = '/HTML/Index/index.html'; }, 1500);
-            } else if (err.message) {
-                errorMsg = err.message;
-            }
+            // 401 全局已处理，直接展示错误信息（全局 toast 已提示）
+            let errorMsg = err.message || '加载失败，请稍后重试';
             dateHistoryMessageList.innerHTML = `<div style="text-align: center; padding: 40px; color: #b87a48;">😥 ${errorMsg}</div>`;
-            window.showToast(errorMsg, 3000);
+            // 这里不再额外 showToast，因为 http.js 已弹出提示
         }
     }
 

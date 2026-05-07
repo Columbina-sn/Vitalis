@@ -55,6 +55,8 @@ class UserInfoResponse(BaseModel):
     nickname: Optional[str] = None
     avatar: str
     invite_code: Optional[str] = None
+    location: Optional[str] = None
+    login_ip: Optional[str] = None
 
     class Config:
         from_attributes = True

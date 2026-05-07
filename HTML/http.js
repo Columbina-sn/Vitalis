@@ -11,6 +11,7 @@
     // 清除 token 并跳转到登录页（如果当前不在登录页）
     function redirectToLogin() {
         localStorage.removeItem('access_token');               // 删除失效的 token
+        localStorage.removeItem('user_base_info');             // 清除用户缓存，避免冲突
         if (!window.location.pathname.includes('/Index/')) {  // 避免重复跳转登录页
             window.location.href = LOGIN_PAGE_URL;            // 跳转到登录页
         }
@@ -78,11 +79,19 @@
 
         // 处理 401 未授权（需要认证的接口）
         if (response.status === 401 && needAuth === true) {
-            redirectToLogin();                         // 清除 token 并跳转登录页
             const errMsg = responseData?.detail || '登录已过期，请重新登录';
+            // 显示友好提示，让用户知道发生了什么
+            if (typeof window.showToast === 'function') {
+                window.showToast(`⚠️ ${errMsg}`, 5000);
+            }
+            // 延迟跳转，确保提示能被看到
+            setTimeout(() => {
+                redirectToLogin();
+            }, 5000);
             const error = new Error(errMsg);
             error.status = 401;
             error.original = responseData;
+            error.alreadyHandled = true;   // 标记已由全局处理，避免页面再重复跳转
             throw error;
         }
 
@@ -100,18 +109,18 @@
             const detail = responseData?.detail || '';
             if (detail.includes('账号已被禁止登录')) {
                 // 显示提示，然后延迟跳转回登录页
-                window.showToast && window.showToast('🚫 账号已被禁止登录，即将返回登录页', 2500);
-                localStorage.removeItem('access_token');
-                // 用 setTimeout 确保提示可见，且不会被后续错误处理取消跳转
+                window.showToast && window.showToast('🚫 账号已被禁止登录，即将返回登录页', 5000);
+                // 延迟后调用 redirectToLogin 统一清除缓存并跳转
                 setTimeout(() => {
-                    window.location.replace(LOGIN_PAGE_URL);
-                }, 2000);
+                    redirectToLogin();
+                }, 5000);
                 const error = new Error(detail);
                 error.status = 403;
                 error.original = responseData;
+                error.alreadyHandled = true;   // 标记已处理
                 throw error;
             }
-            // 其他 403（如管理员熔断）按原样抛出
+            // 其他 403 不加标记
             const otherMsg = responseData?.detail || `权限不足 (${response.status})`;
             const err = new Error(otherMsg);
             err.status = 403;

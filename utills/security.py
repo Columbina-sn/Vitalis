@@ -1,5 +1,6 @@
 # utills/security.py
 # 导入密码加密相关的库
+import uuid
 import warnings
 
 from passlib.context import CryptContext
@@ -55,6 +56,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440
 # 定义函数：生成一个新的 JWT token
 # data: 要放入 token 的信息（比如用户的手机号），必须是字典类型
 # expires_delta: 可选参数，可以自定义过期时间，如果不传则使用默认的过期时间
+# 新函数带有jti，旧函数只用于管理员token。话说搞来搞去居然管理员还没用户登录安全了吗……
 def create_access_token(data: Dict[str, any], expires_delta: Optional[timedelta] = None) -> str:
     """
     生成 JWT token
@@ -78,6 +80,22 @@ def create_access_token(data: Dict[str, any], expires_delta: Optional[timedelta]
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     # 返回生成的 token 字符串
     return encoded_jwt
+
+
+def create_access_token_with_jti(data: Dict[str, any], expires_delta: Optional[timedelta] = None) -> tuple[str, str]:
+    """
+    生成带唯一 jti 的 JWT，返回 (token, jti)
+    """
+    jti = uuid.uuid4().hex
+    to_encode = data.copy()
+    to_encode["jti"] = jti
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt, jti
 
 
 # 定义函数：验证 token 的有效性，并返回 token 中包含的数据

@@ -9,17 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
 from crud.admin import create_admin_log, count_admin_stage1_attempts_last_24h
-from crud.auth import is_admin_login_enabled
+from crud.auth import is_admin_login_enabled, invalidate_previous_sessions, create_login_history
 from crud.user import (
     get_user_by_phone, create_user, create_user_status,
     get_valid_invite_code, delete_invite_code
 )
 from schemas.user import UserCreate, UserLogin, Token
 from utills.email_utils import send_admin_login_alert
+from utills.geo_utils import get_city_from_ip
 from utills.ip_utils import get_client_ip
 from utills.response import success_response
-from utills.security import verify_password, create_access_token
-from models import AdminLog
+from utills.security import verify_password, create_access_token, create_access_token_with_jti
+from models import AdminLog, LoginHistory
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -41,7 +42,7 @@ PENDING_EXPIRE_SECONDS = 30  # 30秒内必须完成二级验证
 
 
 @router.post("/register", summary="用户注册")
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(user_data: UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
     """
     注册流程：
     1. 校验手机号是否已被注册
@@ -71,7 +72,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         new_user = await create_user(db, user_data.phone, user_data.password, user_data.invite_code)
         await create_user_status(db, new_user.id)
         await delete_invite_code(db, user_data.invite_code)
-        await db.commit()
+        # await db.commit() 这里不提交，保证整个注册都在一个事务。
     except Exception:
         await db.rollback()
         raise HTTPException(
@@ -79,9 +80,29 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="注册失败，请稍后重试"
         )
 
-    # 4. 生成 token
-    access_token = create_access_token(data={"sub": new_user.phone})
-    token_data = Token(access_token=access_token)
+    # 4. 生成 token 与 jti
+    token, jti = create_access_token_with_jti(data={"sub": new_user.phone})
+
+    # 5. 解析 IP 与城市
+    client_ip = get_client_ip(request)
+    try:
+        location = get_city_from_ip(client_ip)
+    except Exception:
+        location = None  # 解析失败只记空，不影响登录
+
+    # 6. 更新用户当前会话字段
+    new_user.current_token_jti = jti
+    new_user.current_login_ip = client_ip
+    new_user.current_location = location
+
+    # 7. 插入登录历史
+    device_info = request.headers.get("user-agent", "")[:200]
+    # 8. 使之前的有效会话失效
+    await invalidate_previous_sessions(db, new_user.id)
+    await create_login_history(db, new_user.id, client_ip, location, device_info, jti)
+    await db.commit()
+
+    token_data = Token(access_token=token)
     return success_response(message="注册成功", data=token_data)
 
 
@@ -93,7 +114,7 @@ async def login(
 ):
     """
     登录流程：
-    - 普通用户：验证手机号+密码，直接返回 token
+    - 普通用户：验证手机号+密码，直接返回 token 等信息
     - 管理员手机号：验证一级密码后，发送邮件并返回 require_second_factor: true（若IP与上次相同则跳过邮件）
     """
     phone = user_data.phone
@@ -193,9 +214,68 @@ async def login(
             detail="手机号或密码错误"
         )
 
-    access_token = create_access_token(data={"sub": user.phone})
-    token_data = Token(access_token=access_token)
-    return success_response(message="登录成功", data=token_data)
+    token, jti = create_access_token_with_jti(data={"sub": user.phone})
+    client_ip = get_client_ip(request)
+    # client_ip = "101.132.178.179"  # 测试用 上海
+    # client_ip = "117.136.110.125"  # 测试用 江西
+    try:
+        location = get_city_from_ip(client_ip)
+    except Exception:
+        location = None  # 解析失败只记空，不影响登录
+
+    user.current_token_jti = jti
+    user.current_login_ip = client_ip
+    user.current_location = location
+
+    # 旧会话失效
+    await invalidate_previous_sessions(db, user.id)
+    login_record = await create_login_history(
+        db, user.id, client_ip, location,
+        request.headers.get("user-agent", "")[:200], jti
+    )
+    await db.commit()
+
+    token_data = Token(access_token=token)
+
+    # ---------- 异地登录提醒 ----------
+    # 查询最近一次已失效的登录记录（不包含本次刚写入的记录）
+    await db.flush()   # ✅ 确保 login_record.id 被赋值
+    prev_login_stmt = (
+        select(LoginHistory)
+        .where(LoginHistory.user_id == user.id, LoginHistory.id != login_record.id)
+        .order_by(desc(LoginHistory.created_at))
+        .limit(1)
+    )
+    prev_result = await db.execute(prev_login_stmt)
+    prev_login = prev_result.scalar_one_or_none()
+
+    login_alert = None
+    if prev_login:
+        prev_loc = prev_login.location
+        cur_loc = location
+
+        # 优先用城市比较，如果都有城市且不同，才提醒；否则降级比较 IP
+        if prev_loc and cur_loc:
+            if prev_loc != cur_loc:
+                login_alert = (
+                    f"⚠️ 检测到异地登录：上次登录地点 {prev_loc}，"
+                    f"本次为 {cur_loc}。如非本人操作，请及时修改密码。"
+                )
+        else:
+            # 任一城市缺失，回退到 IP 比较
+            if prev_login.login_ip != client_ip:
+                prev_str = prev_loc or "未知地区"
+                cur_str = cur_loc or "未知地区"
+                login_alert = (
+                    f"⚠️ 检测到异地登录：上次登录地点 {prev_str}，"
+                    f"本次为 {cur_str}。如非本人操作，请及时修改密码。"
+                )
+
+    # 将 Token 对象转为字典，再添加 login_alert（不破坏原有结构）
+    return_dict = token_data.model_dump()
+    return_dict["login_alert"] = login_alert
+
+    return success_response(message="登录成功", data=return_dict)
 
 
 @router.post("/admin/second-verify", summary="管理员二级验证")

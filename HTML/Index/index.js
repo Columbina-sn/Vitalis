@@ -421,14 +421,27 @@
             }
 
             const token = data?.access_token;
+            const loginAlert = data?.login_alert;   // 新增：读取异地登录提醒
+
             if (token) {
                 localStorage.setItem('access_token', token);
-                window.showToast('🎉 登录成功，即将进入元气岛', 2000);
-                setTimeout(() => {
-                    window.location.href = '/HTML/Dashboard/dashboard.html';
-                }, 1500);
-            } else {
-                throw new Error('登录响应缺少 token');
+
+                if (loginAlert) {
+                    // 有异地提醒时，先展示 6 秒，然后再弹出成功提示，最后延迟 2 秒跳转
+                    window.showToast(loginAlert, 6000);
+                    setTimeout(() => {
+                        window.showToast('🎉 登录成功，即将进入元气岛', 2000);
+                        setTimeout(() => {
+                            window.location.href = '/HTML/Dashboard/dashboard.html';
+                        }, 2000);
+                    }, 6000);
+                } else {
+                    // 无异地提醒，正常流程
+                    window.showToast('🎉 登录成功，即将进入元气岛', 2000);
+                    setTimeout(() => {
+                        window.location.href = '/HTML/Dashboard/dashboard.html';
+                    }, 2000);
+                }
             }
         } catch (error) {
             let errMsg = error.message || '登录失败，请重试';

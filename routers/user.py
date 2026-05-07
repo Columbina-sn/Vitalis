@@ -90,16 +90,18 @@ async def mark_intro_seen(
     return success_response(message="标记新手引导完成成功", data={"has_seen_intro": True})
 
 
-@router.get("/information", summary="获取用户所有信息（手机号、昵称、头像、邀请码）")
+@router.get("/information", summary="获取用户所有信息（手机号、昵称、头像、邀请码、位置）")
 async def get_user_info(
     current_user: User = Depends(get_current_user),
 ):
-    """获取用户所有信息（手机号、昵称、头像、邀请码）"""
+    """获取用户所有信息（手机号、昵称、头像、邀请码、位置）"""
     data = UserInfoResponse(
         phone=current_user.phone,
         nickname=current_user.nickname,
         avatar=current_user.avatar or DEFAULT_AVATAR_URL,
-        invite_code=current_user.invite_code
+        invite_code=current_user.invite_code,
+        location=current_user.current_location or "未知",
+        login_ip=current_user.current_login_ip
     )
     return success_response(message="获取用户信息成功", data=data)
 
@@ -215,6 +217,35 @@ async def change_theme_mode(
         raise HTTPException(status_code=500, detail="主题修改失败")
     await db.commit()
     return success_response(message="主题模式已更新", data={"theme_mode": req.theme_mode})
+
+
+# routers/user.py 新增接口
+@router.post("/logout", summary="安全退出")
+async def logout(
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """退出登录，清除当前会话"""
+    from sqlalchemy import update as sql_update
+    from models import LoginHistory
+
+    # 将当前 token 对应的登录历史标记为无效
+    # 从依赖注入的 user 对象无法直接拿到 jti，需从 request 或 token 中获取
+    # 但此处依赖 get_current_user 已经校验，故可直接利用 user 的 current_token_jti
+    # 注意：已经置空，应先保存 jti 再清除
+    jti = current_user.current_token_jti  # 保存原有 jti
+    current_user.current_token_jti = None
+    current_user.current_login_ip = None
+    current_user.current_location = None
+
+    if jti:
+        await db.execute(
+            sql_update(LoginHistory)
+            .where(LoginHistory.token_jti == jti, LoginHistory.is_valid == True)
+            .values(is_valid=False)
+        )
+    await db.commit()
+    return success_response(message="已安全退出")
 
 
 @router.post("/delete-account", summary="注销当前用户账户")
