@@ -11,8 +11,8 @@ from config.db_conf import get_db
 from core.deps import get_current_admin_user
 from crud.admin import get_admin_stats, create_admin_log, batch_create_invite_codes, get_admin_logs_cursor_paginated, \
     disable_admin_login, get_users_paginated, get_comments_paginated, get_invite_codes_paginated, \
-    get_admin_logs_all_paginated, get_user_by_id_admin, update_user_admin, delete_user_admin, get_comment_by_id, \
-    update_comment_admin, delete_comment_admin, get_invite_code_by_id, update_invite_code_admin, \
+    get_admin_logs_all_paginated, get_user_by_id_admin, update_user_admin, soft_delete_user_admin, get_comment_by_id, \
+    update_comment_admin, soft_delete_comment_admin, get_invite_code_by_id, update_invite_code_admin, \
     delete_invite_code_admin, delete_admin_log_by_id
 from models import AdminLog
 from schemas.admin import AdminStatsResponse, BatchInviteCodeRequest, BatchInviteCodeResponse, AdminLogItem, \
@@ -301,6 +301,8 @@ async def update_user(
     return success_response(message="用户信息已更新")
 
 
+# routers/admin.py 中的相关接口修改
+
 @router.delete("/users/{user_id}", summary="删除用户")
 async def delete_user(
         user_id: int = Path(...),
@@ -311,34 +313,22 @@ async def delete_user(
     user = await get_user_by_id_admin(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
-    before_snapshot = {"phone": user.phone, "nickname": user.nickname}
+    before_snapshot = {"phone": user.phone, "nickname": user.nickname, "is_deleted": user.is_deleted}
 
-    # --- 清理头像文件（与用户自注销逻辑一致） ---
-    try:
-        if user.avatar and user.avatar != DEFAULT_AVATAR_URL:
-            avatar_relative = user.avatar.lstrip("/")
-            filename = os.path.basename(avatar_relative)
-            file_path = os.path.join(AVATAR_UPLOAD_DIR, filename)
-            # 安全检查，防止路径穿越
-            if os.path.abspath(file_path).startswith(os.path.abspath(AVATAR_UPLOAD_DIR)):
-                if os.path.exists(file_path) and os.path.isfile(file_path):
-                    os.remove(file_path)
-    except Exception as e:
-        # 文件删除失败不中断数据库操作，只记录日志
-        print(f"管理员删除用户头像失败 (user_id={user_id}): {e}")
+    # 软删除（不清理头像，等物理删除时再清）
+    await soft_delete_user_admin(db, user_id)
 
-    # --- 数据库删除 ---
-    await delete_user_admin(db, user_id)
     await create_admin_log(
         db, admin_phone=current_admin["phone"],
-        action_type="DELETE_USER",
+        action_type="DELETE_USER",   # 也可以改用 "SOFT_DELETE_USER"，此处保持兼容
         target_table="users", target_id=user_id,
-        before_snapshot=before_snapshot, after_snapshot=None,
+        before_snapshot=before_snapshot,
+        after_snapshot={"is_deleted": True, "deleted_at": datetime.now().isoformat()},
         request_ip=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
-        remark=f"删除用户 {user.phone} 及其所有关联数据"
+        remark=f"软删除用户 {user.phone}，数据保留30天后将彻底清除"
     )
-    return success_response(message="用户已删除")
+    return success_response(message="用户已标记删除")
 
 
 # ---------- 评论编辑与删除 ----------
@@ -378,18 +368,21 @@ async def delete_comment(
     comment = await get_comment_by_id(db, comment_id)
     if not comment:
         raise HTTPException(status_code=404, detail="评论不存在")
-    before_snapshot = {"content": comment.content}
-    await delete_comment_admin(db, comment_id)
+    before_snapshot = {"content": comment.content, "is_deleted": comment.is_deleted}
+
+    await soft_delete_comment_admin(db, comment_id)
+
     await create_admin_log(
         db, admin_phone=current_admin["phone"],
         action_type="DELETE_COMMENT",
         target_table="comment", target_id=comment_id,
-        before_snapshot=before_snapshot, after_snapshot=None,
+        before_snapshot=before_snapshot,
+        after_snapshot={"is_deleted": True, "deleted_at": datetime.now().isoformat()},
         request_ip=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
-        remark=f"删除评论 ID：{comment_id}"
+        remark=f"软删除评论 ID：{comment_id}"
     )
-    return success_response(message="评论已删除")
+    return success_response(message="评论已标记删除")
 
 
 # ---------- 邀请码编辑与删除 ----------

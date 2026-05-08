@@ -20,8 +20,9 @@ async def get_comments_cursor_paginated(
     返回：(评论列表, next_cursor 字典或 None)
     """
     # 构建基础查询并排序
-    stmt = select(Comment).order_by(
-        (func.length(Comment.content) > 50).desc(),  # is_long
+    stmt = select(Comment).where(Comment.is_deleted == False)  # 新增这行
+    stmt = stmt.order_by(
+        (func.length(Comment.content) > 50).desc(),
         Comment.created_at.desc(),
         Comment.id.desc()
     )
@@ -59,31 +60,31 @@ async def get_comments_cursor_paginated(
     return items, next_cursor
 
 
-async def get_comments_list(db: AsyncSession, skip: int = 0, limit: int = 10):
-    """
-    获取评论列表
-    排序规则：
-        1. 优先显示内容长度 > 50 的评论
-        2. 按创建时间倒序（新评论在前）
-    """
-    stmt = (
-        select(Comment)
-        .order_by(
-            (func.length(Comment.content) > 50).desc(),  # 字数>50的优先
-            Comment.created_at.desc()            # 新评论优先
-        )
-        .offset(skip)
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    return result.scalars().all()
-
-
-async def get_total_comments_count(db: AsyncSession):
-    """获取评论数量"""
-    stmt = select(func.count(Comment.id))
-    result = await db.execute(stmt)
-    return result.scalar_one()  # 只能有1个结果 否则报错
+# async def get_comments_list(db: AsyncSession, skip: int = 0, limit: int = 10):
+#     """
+#     获取评论列表
+#     排序规则：
+#         1. 优先显示内容长度 > 50 的评论
+#         2. 按创建时间倒序（新评论在前）
+#     """
+#     stmt = (
+#         select(Comment)
+#         .order_by(
+#             (func.length(Comment.content) > 50).desc(),  # 字数>50的优先
+#             Comment.created_at.desc()            # 新评论优先
+#         )
+#         .offset(skip)
+#         .limit(limit)
+#     )
+#     result = await db.execute(stmt)
+#     return result.scalars().all()
+#
+#
+# async def get_total_comments_count(db: AsyncSession):
+#     """获取评论数量"""
+#     stmt = select(func.count(Comment.id))
+#     result = await db.execute(stmt)
+#     return result.scalar_one()  # 只能有1个结果 否则报错
 
 
 async def add_new_comment(db: AsyncSession, content: str, ip: str):

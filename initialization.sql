@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
     current_login_ip VARCHAR(45) DEFAULT NULL COMMENT '当前登录IP地址',
     current_location VARCHAR(100) DEFAULT NULL COMMENT '最近登录的城市信息',
     theme_mode TINYINT UNSIGNED NOT NULL DEFAULT 2 COMMENT '主题模式：0-浅色，1-深色，2-跟随系统',
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已软删除（0=正常，1=已删除）',
+    deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
@@ -107,6 +109,8 @@ CREATE TABLE IF NOT EXISTS comment (
     content TEXT NOT NULL COMMENT '评论内容',
     ip_address VARCHAR(45) NOT NULL COMMENT '评论者IP地址',
     replied TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已回复',
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已软删除（0=正常，1=已删除）',
+    deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_ip_time (ip_address, created_at),
     INDEX idx_comment_created_at (created_at)

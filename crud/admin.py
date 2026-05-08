@@ -8,7 +8,7 @@ from sqlalchemy import select, func, tuple_, and_
 from sqlalchemy import update as sql_update,  delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import AdminLog, ConversationHistory, InviteCode, Comment, User, SystemConfig
+from models import AdminLog, ConversationHistory, InviteCode, Comment, User, SystemConfig, UserStatus
 
 
 async def create_admin_log(
@@ -244,7 +244,6 @@ async def get_users_paginated(
         page_size: int = 20
 ) -> Tuple[List[Dict[str, Any]], int]:
     """分页返回用户列表，包含心理和谐指数、对话数（仅 user 角色）"""
-    from models import UserStatus
 
     # 对话数子查询（仅 user 角色）
     conv_count_sub = (
@@ -258,7 +257,7 @@ async def get_users_paginated(
     )
 
     # 总数
-    total_stmt = select(func.count()).select_from(User)
+    total_stmt = select(func.count()).select_from(User).where(User.is_deleted == False)
     total_res = await db.execute(total_stmt)
     total = total_res.scalar() or 0
 
@@ -275,6 +274,7 @@ async def get_users_paginated(
             UserStatus.psychological_harmony_index,
             conv_count_sub.label("conversation_count"),
         )
+        .where(User.is_deleted == False)
         .outerjoin(UserStatus, User.id == UserStatus.user_id)
         .order_by(User.created_at.desc(), User.id.desc())
         .offset(offset)
@@ -306,13 +306,14 @@ async def get_comments_paginated(
         page_size: int = 20
 ) -> Tuple[List[Comment], int]:
     """分页返回所有评论（按时间倒序）"""
-    total_stmt = select(func.count()).select_from(Comment)
+    total_stmt = select(func.count()).select_from(Comment).where(Comment.is_deleted == False)
     total_res = await db.execute(total_stmt)
     total = total_res.scalar() or 0
 
     offset = (page - 1) * page_size
     stmt = (
         select(Comment)
+        .where(Comment.is_deleted == False)
         .order_by(Comment.created_at.desc(), Comment.id.desc())
         .offset(offset)
         .limit(page_size)
@@ -411,14 +412,24 @@ async def update_invite_code_admin(db: AsyncSession, invite_id: int, code: str, 
 
 
 # 删除操作
-async def delete_user_admin(db: AsyncSession, user_id: int):
-    stmt = sql_delete(User).where(User.id == user_id)
+async def soft_delete_user_admin(db: AsyncSession, user_id: int) -> None:
+    """软删除用户，标记 is_deleted 并记录时间"""
+    stmt = (
+        sql_update(User)
+        .where(User.id == user_id)
+        .values(is_deleted=True, deleted_at=datetime.now(), updated_at=datetime.now())
+    )
     await db.execute(stmt)
     await db.flush()
 
 
-async def delete_comment_admin(db: AsyncSession, comment_id: int):
-    stmt = sql_delete(Comment).where(Comment.id == comment_id)
+async def soft_delete_comment_admin(db: AsyncSession, comment_id: int) -> None:
+    """软删除评论"""
+    stmt = (
+        sql_update(Comment)
+        .where(Comment.id == comment_id)
+        .values(is_deleted=True, deleted_at=datetime.now())
+    )
     await db.execute(stmt)
     await db.flush()
 

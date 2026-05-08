@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
 from core.deps import get_current_user
-from crud.user import update_user_nickname, update_user_avatar, delete_user_account, get_user_status_by_user_id, \
+from crud.user import update_user_nickname, update_user_avatar, soft_delete_user_account, get_user_status_by_user_id, \
     update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
     get_user_schedules, update_user_theme_mode
 from models import User
@@ -281,8 +281,8 @@ async def delete_account(
                 # 文件删除失败不影响账户注销流程，仅记录日志
                 print(f"删除头像文件失败: {e}")
 
-    # 删除用户数据库记录（级联删除所有关联数据）
-    await delete_user_account(db, current_user)
+    # 执行软删除
+    await soft_delete_user_account(db, current_user)
 
     return success_response(message="账户已成功注销", data=None)
 

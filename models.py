@@ -40,6 +40,8 @@ class User(Base):
     current_login_ip: Mapped[Optional[str]] = mapped_column(String(45), comment="当前登录IP地址")
     current_location: Mapped[Optional[str]] = mapped_column(String(100), comment="最近登录的城市信息")
     theme_mode: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=2, comment="主题模式：0-浅色，1-深色，2-跟随系统")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已软删除")
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="软删除时间")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -132,6 +134,8 @@ class Comment(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="评论内容")
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False, index=True, comment="评论者IP地址")
     replied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已回复")
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否已软删除")
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="软删除时间")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, default=datetime.now, comment="创建时间")
 
     def __repr__(self):

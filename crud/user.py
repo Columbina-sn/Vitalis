@@ -12,8 +12,13 @@ from utills.security import get_hash_password
 
 
 async def get_user_by_phone(db: AsyncSession, phone: str) -> Optional[User]:
-    """根据手机号查询用户"""
-    result = await db.execute(select(User).where(User.phone == phone))
+    """根据手机号查询用户，排除已软删除的记录"""
+    result = await db.execute(
+        select(User).where(
+            User.phone == phone,
+            User.is_deleted == False
+        )
+    )
     return result.scalar_one_or_none()
 
 
@@ -94,14 +99,14 @@ async def get_user_info_by_id(db: AsyncSession, user_id: int) -> Optional[dict]:
     }
 
 
-async def delete_user_account(db: AsyncSession, user: User) -> None:
-    """
-    物理删除用户及其所有关联数据（依赖数据库外键级联删除）
-    - 用户状态表 user_status (ON DELETE CASCADE)
-    - 情绪转折表 emotion_shifts (ON DELETE CASCADE)
-    - 对话历史表 conversation_history (ON DELETE CASCADE)
-    """
-    await db.delete(user)
+async def soft_delete_user_account(db: AsyncSession, user: User) -> None:
+    """软删除用户：标记已注销，不物理删除数据"""
+    user.is_deleted = True
+    user.deleted_at = datetime.now()
+    # 清除敏感字段
+    user.current_token_jti = None
+    user.current_login_ip = None
+    user.current_location = None
     await db.commit()
 
 
