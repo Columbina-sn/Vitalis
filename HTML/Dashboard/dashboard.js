@@ -675,13 +675,9 @@
         const container = document.getElementById('recentScheduleList');
         if (!container) return;
 
-        const all = [...allSchedules.uncompleted, ...allSchedules.completed];
-        all.sort((a, b) => {
-            const timeA = a.scheduled_time ? new Date(a.scheduled_time).getTime() : 0;
-            const timeB = b.scheduled_time ? new Date(b.scheduled_time).getTime() : 0;
-            return timeB - timeA;
-        });
-        const recent = all.slice(0, 5);
+        const uncompleted = allSchedules.uncompleted;  // 升序：近的在前
+        const completed = allSchedules.completed;      // 降序：最近完成的在前
+        const recent = [...uncompleted, ...completed].slice(0, 5);
 
         container.innerHTML = '';
         if (recent.length === 0) {
@@ -742,14 +738,10 @@
         try {
             const data = await window.http({ method: 'GET', url: '/user/schedules', needAuth: true });
             if (data) {
-                const sortByTime = (a, b) => {
-                    const timeA = a.scheduled_time ? new Date(a.scheduled_time).getTime() : Infinity;
-                    const timeB = b.scheduled_time ? new Date(b.scheduled_time).getTime() : Infinity;
-                    return timeA - timeB;
-                };
+                // 后端已排序：未完成按 scheduled_time 升序、已完成按 updated_at 降序
                 allSchedules = {
-                    uncompleted: (data.uncompleted || []).sort(sortByTime),
-                    completed: (data.completed || []).sort(sortByTime)
+                    uncompleted: data.uncompleted || [],
+                    completed: data.completed || []
                 };
                 renderRecentSchedules();
                 renderFullSchedules();
