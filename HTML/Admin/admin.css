@@ -403,6 +403,46 @@
 .login-status.allowed { color: #2a7; font-weight: 500; }
 .login-status.banned { color: #e88; font-weight: 500; }
 
+/* ---------- 三个手动触发按钮的独立配色 ---------- */
+
+/* 每日摘要生成 - 温暖杏色 */
+#triggerDailySummaryBtn {
+  background: #f3e0c0;
+  color: #7a4a2e;
+  box-shadow: 0 2px 0 #d9b882;
+}
+#triggerDailySummaryBtn:active {
+  box-shadow: none;
+}
+
+/* 数据清理 - 柔和灰紫 */
+#triggerCleanupBtn {
+  background: #e0d6e8;
+  color: #5a4a6a;
+  box-shadow: 0 2px 0 #c4b2d4;
+}
+#triggerCleanupBtn:active {
+  box-shadow: none;
+}
+
+/* 数据库备份 - 淡蓝灰 */
+#triggerBackupBtn {
+  background: #d4e0f0;
+  color: #3a5570;
+  box-shadow: 0 2px 0 #b0c4d8;
+}
+#triggerBackupBtn:active {
+  box-shadow: none;
+}
+
+/* 保留 disabled 状态下统一的半透明效果（由 JS 动态设置 opacity） */
+#triggerDailySummaryBtn:disabled,
+#triggerCleanupBtn:disabled,
+#triggerBackupBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ========== 自定义滚动条 ========== */
 .table-wrapper::-webkit-scrollbar,
 .action-area::-webkit-scrollbar,

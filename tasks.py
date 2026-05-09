@@ -194,11 +194,32 @@ async def run_cleanup_loop():
             await asyncio.sleep(60)
 
 
-async def backup_database_task():
-    """在线程池中执行备份操作（因为 mysqldump 是阻塞操作）"""
+async def backup_database_task(
+    admin_phone="system",
+    action_type="AUTO_BACKUP",
+    request_ip="127.0.0.1",
+    user_agent="CronJob",
+    remark_prefix="定时任务自动触发"
+):
+    """执行备份，并（可选）记录操作日志。"""
     loop = asyncio.get_running_loop()
     from utills.backup import perform_backup
     await loop.run_in_executor(None, perform_backup)
+
+    # 记录备份日志（成功执行后）
+    try:
+        async with AsyncSessionLocal() as db:
+            await create_admin_log(
+                db=db,
+                admin_phone=admin_phone,
+                action_type=action_type,
+                request_ip=request_ip,
+                user_agent=user_agent,
+                remark=f"{remark_prefix}，执行数据库备份"
+            )
+            await db.commit()
+    except Exception as e:
+        print(f"备份日志记录失败: {e}")
 
 
 async def run_backup_loop():

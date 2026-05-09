@@ -20,7 +20,7 @@ from schemas.admin import AdminStatsResponse, BatchInviteCodeRequest, BatchInvit
     AdminLogCursor, AdminLogsResponse, UserInAdminList, AdminUserListResponse, CommentInAdminList, \
     AdminCommentListResponse, InviteCodeItem, AdminInviteCodeListResponse, AdminLogItemFull, AdminLogListResponse, \
     UpdateUserRequest, UpdateCommentRequest, UpdateInviteCodeRequest
-from tasks import daily_summary_task, cleanup_soft_deleted_records
+from tasks import daily_summary_task, cleanup_soft_deleted_records, backup_database_task
 from utills.response import success_response
 from utills.ip_utils import get_client_ip
 
@@ -620,3 +620,55 @@ async def trigger_cleanup(
         remark_prefix="管理员手动触发"
     )
     return success_response(message="数据清理任务已启动")
+
+
+# ---------- 手动触发数据库备份 ----------
+@router.get("/backup/status", summary="查询今日是否已有备份（自动或手动）")
+async def backup_status(
+    current_admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type.in_(['AUTO_BACKUP', 'MANUAL_BACKUP']),
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    count = result.scalar() or 0
+    return success_response(message="查询成功", data={"alreadyTriggered": count > 0})
+
+
+@router.post("/backup/trigger", summary="手动触发数据库备份")
+async def trigger_backup(
+    request: Request,
+    current_admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # 检查今日是否已执行过备份（无论自动还是手动）
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type.in_(['AUTO_BACKUP', 'MANUAL_BACKUP']),
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    count = result.scalar() or 0
+    if count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="今天已经执行过数据库备份（自动或手动），不可重复执行"
+        )
+
+    # 调用备份任务（等待完成，管理员会收到响应）
+    await backup_database_task(
+        admin_phone=current_admin["phone"],
+        action_type="MANUAL_BACKUP",
+        request_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        remark_prefix="管理员手动触发"
+    )
+
+    return success_response(message="数据库备份任务已启动并完成")

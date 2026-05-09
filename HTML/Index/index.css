@@ -102,7 +102,7 @@
   background: rgba(255, 252, 240, 0.96); /* 暖白半透明背景，轻微透出底部条纹 */
   backdrop-filter: blur(2px);            /* 极轻微背景模糊，增强柔和感 */
   width: 620px;                          /* 固定宽度，适合桌面阅读 */
-  height: 600px;                         /* 固定高度，容纳滚动区域 */
+  height: 660px;                         /* 固定高度，容纳滚动区域 */
   max-width: 90%;                        /* 移动端限制最大宽度为视口 90% */
   padding: 28px 24px;                    /* 内边距：上下 28px，左右 24px */
   border-radius: 48px;                   /* 大圆角，现代卡片风格 */
@@ -363,7 +363,7 @@
 
 .auth-card {
   background: #fffdf8;                   /* 纯白偏暖背景 */
-  width: 390px;                          /* 固定宽度，适合表单内容 */
+  width: 400px;                          /* 固定宽度，适合表单内容 */
   max-width: 90%;                        /* 移动端限制最大宽度为视口 90% */
   padding: 36px 30px;                    /* 内边距：上下 36px，左右 30px */
   border-radius: 56px;                   /* 大圆角，圆润卡片 */

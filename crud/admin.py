@@ -93,7 +93,7 @@ async def get_admin_stats(db: AsyncSession) -> Dict[str, int]:
     - 当前有效的邀请码数
     """
     # 用户总数
-    total_users_result = await db.execute(select(func.count()).select_from(User))
+    total_users_result = await db.execute(select(func.count()).select_from(User).where(User.is_deleted == False))
     total_users = total_users_result.scalar() or 0
 
     # 今日对话数 (created_at >= 今日 00:00:00)
@@ -106,7 +106,7 @@ async def get_admin_stats(db: AsyncSession) -> Dict[str, int]:
     today_conversations = today_conv_result.scalar() or 0
 
     # 评论总数
-    total_comments_result = await db.execute(select(func.count()).select_from(Comment))
+    total_comments_result = await db.execute(select(func.count()).select_from(Comment).where(Comment.is_deleted == False))
     total_comments = total_comments_result.scalar() or 0
 
     # 有效邀请码数 (expiry_time > now)

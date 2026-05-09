@@ -1454,8 +1454,10 @@
 
     function addTopWelcomeMessages() {
         if (topWelcomeAdded) return;
-        const msg1 = createMessageElement('assistant', '🌱 你好，我是你的元气伙伴小元。让我们一起关注身心状态，每天进步一点点～');
-        const msg2 = createMessageElement('assistant', '试着和我聊聊天，生成你的状态报表吧');
+        const msg1 = createMessageElement('assistant', '🌱 你好，我是你的元气伙伴小元。让我们一起关注身心状态，每天进步一点点~');
+        const msg2 = createMessageElement('assistant', '试着和我聊聊天，生成你的状态报表吧！');
+        const msg3 = createMessageElement('assistant', '不知道说什么的话，可以先试着自我描述一下，这样小元可以更快了解你哦~');
+        messageContainer.insertBefore(msg3, messageContainer.firstChild);
         messageContainer.insertBefore(msg2, messageContainer.firstChild);
         messageContainer.insertBefore(msg1, messageContainer.firstChild);
         topWelcomeAdded = true;
@@ -1754,7 +1756,8 @@
             await fetchAndUpdateUserStatus();
             isDashboardReady = true;
             addMessageToUI('assistant', '🌱 你好，我是你的元气伙伴小元。让我们一起关注身心状态，每天进步一点点～');
-            addMessageToUI('assistant', '试着和我聊聊天，生成你的状态报表吧');
+            addMessageToUI('assistant', '试着和我聊聊天，生成你的状态报表吧！');
+            addMessageToUI('assistant', '不知道说什么的话，可以先试着自我描述一下，这样小元可以更快了解你哦~');
         } catch (err) {
             window.showToast('设置昵称失败: ' + err.message, 3000);
         }

@@ -59,6 +59,8 @@
   const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn');
   const triggerCleanupBtn = document.getElementById('triggerCleanupBtn');
   const cleanupStatusText = document.getElementById('cleanupStatusText');
+  const triggerBackupBtn = document.getElementById('triggerBackupBtn');
+  const backupStatusText = document.getElementById('backupStatusText');
 
   // 模态框
   const adminLogsModal = document.getElementById('adminLogsModal');
@@ -492,6 +494,49 @@
               } else {
                   window.showToast('清理失败：' + err.message);
               }
+          }
+      });
+  }
+
+  // ======================== 11c. 自动备份模块 ========================
+  // ---------- 查询今日备份是否已执行 (GET /admin/backup/status) ----------
+  async function checkBackupStatus() {
+      try {
+          const data = await window.http({ method: 'GET', url: '/admin/backup/status', needAuth: true });
+          if (data.alreadyTriggered) {
+              if (triggerBackupBtn) {
+                  triggerBackupBtn.disabled = true;
+                  triggerBackupBtn.style.opacity = '0.6';
+              }
+              if (backupStatusText) backupStatusText.textContent = '💾 今日已备份';
+          } else {
+              if (triggerBackupBtn) {
+                  triggerBackupBtn.disabled = false;
+                  triggerBackupBtn.style.opacity = '1';
+              }
+              if (backupStatusText) backupStatusText.textContent = '';
+          }
+      } catch (e) {
+          // 读取失败不影响按钮状态
+      }
+  }
+
+  // ---------- 手动触发数据库备份 (POST /admin/backup/trigger) ----------
+  async function triggerBackup() {
+      if (!triggerBackupBtn || triggerBackupBtn.disabled) return;
+      showConfirm('确定要执行数据库备份吗？备份期间服务不受影响，但可能需要一点时间。', async () => {
+          try {
+              await window.http({ method: 'POST', url: '/admin/backup/trigger', needAuth: true });
+              window.showToast('数据库备份完成');
+              // 成功后禁用按钮，显示状态
+              if (triggerBackupBtn) {
+                  triggerBackupBtn.disabled = true;
+                  triggerBackupBtn.style.opacity = '0.6';
+              }
+              if (backupStatusText) backupStatusText.textContent = '💾 今日已备份';
+              // 可选：刷新操作日志列表（如果当前在日志标签页）
+          } catch (err) {
+              window.showToast('备份失败：' + err.message);
           }
       });
   }
@@ -984,10 +1029,19 @@
     bindAdminLogsScroll();
 
     // 每日摘要按钮
-    triggerDailySummaryBtn.addEventListener('click', triggerDailySummary);
+    if (triggerDailySummaryBtn) {
+        triggerDailySummaryBtn.addEventListener('click', triggerDailySummary);
+    }
 
     // 手动清理冷却期数据按钮
-    triggerCleanupBtn.addEventListener('click', triggerCleanup);
+    if (triggerCleanupBtn) {
+        triggerCleanupBtn.addEventListener('click', triggerCleanup);
+    }
+
+    // 手动触发备份按钮
+    if (triggerBackupBtn) {
+        triggerBackupBtn.addEventListener('click', triggerBackup);
+    }
 
     // 日期联动
     logStartDate.addEventListener('change', function () {
@@ -1104,6 +1158,7 @@
     setDefaultDates();
     await checkDailySummaryStatus();
     await checkCleanupStatus();
+    await checkBackupStatus();
     await switchTab('users');
     await fetchStats();
     bindEvents();

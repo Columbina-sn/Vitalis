@@ -515,9 +515,9 @@ body[data-theme="dark"] .primary-btn {
   box-shadow: 0 3px 0 #2e261b !important;
 }
 body[data-theme="dark"] .secondary-btn {
-  background: #2e3a28 !important;
-  color: #a5c090 !important;
-  box-shadow: 0 2px 0 #1c2618 !important;
+  background: #2e3a28;
+  color: #a5c090;
+  box-shadow: 0 2px 0 #1c2618;
 }
 body[data-theme="dark"] .btn-warning {
   background: #4a2e22 !important;
@@ -697,4 +697,30 @@ body[data-theme="dark"] .date-history-messages .message.right::after {
   background: #383225 !important;
   border-right-color: #5a4e38 !important;
   border-bottom-color: #5a4e38 !important;
+}
+
+/* ===== 深色模式手动触发按钮 – 高区分度方案 ===== */
+
+/* 每日摘要生成 – 亮琥珀/暖橙 */
+body[data-theme="dark"] #triggerDailySummaryBtn {
+  background: #5e3e1a;          /* 深琥珀底 */
+  color: #ffd5a4;               /* 暖白文字 */
+  box-shadow: 0 2px 0 #3a2210;
+  border: 1px solid #a8733a;    /* 增加边框强调 */
+}
+
+/* 数据清理 – 紫罗兰 */
+body[data-theme="dark"] #triggerCleanupBtn {
+  background: #3e2a50;          /* 暗紫底 */
+  color: #e2c8ff;               /* 淡紫文字 */
+  box-shadow: 0 2px 0 #241830;
+  border: 1px solid #8b5bb5;
+}
+
+/* 数据库备份 – 深湖蓝 */
+body[data-theme="dark"] #triggerBackupBtn {
+  background: #1a3748;          /* 深蓝底 */
+  color: #b2e0f5;               /* 淡蓝文字 */
+  box-shadow: 0 2px 0 #0e1f2a;
+  border: 1px solid #3a7a9b;
 }
