@@ -156,6 +156,8 @@
   margin: 0 4px;
 }
 
+.fa-undo.action-icon { color: #5f7a4a; }  /* 柔和绿色 */
+
 /* ========== 右侧操作区 ========== */
 .action-area {
   flex: 0 0 30%;

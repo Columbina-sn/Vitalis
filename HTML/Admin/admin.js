@@ -57,6 +57,7 @@
   const logEndDate = document.getElementById('logEndDate');
   const inviteResultList = document.getElementById('inviteResultList');
   const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn');
+  const triggerCleanupBtn = document.getElementById('triggerCleanupBtn');
 
   // 模态框
   const adminLogsModal = document.getElementById('adminLogsModal');
@@ -410,7 +411,7 @@
     });
   }
 
-  // ======================== 11. 每日摘要模块 ========================
+  // ======================== 11a. 每日摘要模块 ========================
   // ---------- 11.1 查询今日是否已触发 (GET /admin/daily-summary/status) ----------
   async function checkDailySummaryStatus() {
       try {
@@ -449,6 +450,49 @@
     }
   }
 
+  // ======================== 11b. 数据清理模块 ========================
+  // ---------- 查询今日是否已触发清理 (GET /admin/cleanup/status) ----------
+  async function checkCleanupStatus() {
+      try {
+          const data = await window.http({ method: 'GET', url: '/admin/cleanup/status', needAuth: true });
+          if (data.alreadyTriggered) {
+              triggerCleanupBtn.disabled = true;
+              triggerCleanupBtn.style.opacity = '0.6';
+              cleanupStatusText.textContent = '🧹 今日已执行';
+          } else {
+              triggerCleanupBtn.disabled = false;
+              triggerCleanupBtn.style.opacity = '1';
+              cleanupStatusText.textContent = '';
+          }
+      } catch (e) {
+          // 忽略
+      }
+  }
+
+  // ---------- 手动触发清理 (POST /admin/cleanup/trigger) ----------
+  async function triggerCleanup() {
+      if (triggerCleanupBtn.disabled) return;
+      showConfirm('确定要执行数据清理吗？这将永久删除已过冷却期的用户和评论。', async () => {
+          try {
+              await window.http({ method: 'POST', url: '/admin/cleanup/trigger', needAuth: true });
+              window.showToast('数据清理已启动');
+              triggerCleanupBtn.disabled = true;
+              triggerCleanupBtn.style.opacity = '0.6';
+              cleanupStatusText.textContent = '🧹 今日已执行';
+              // 清理后刷新统计数据
+              await fetchStats();
+          } catch (err) {
+              if (err.message.includes('已经触发过')) {
+                  triggerCleanupBtn.disabled = true;
+                  triggerCleanupBtn.style.opacity = '0.6';
+                  cleanupStatusText.textContent = '🧹 今日已执行';
+              } else {
+                  window.showToast('清理失败：' + err.message);
+              }
+          }
+      });
+  }
+
   // ======================== 12. 通用数据加载与表格渲染 ========================
   // ---------- 12.1 标签页切换与分页 ----------
   async function switchTab(tab) {
@@ -466,6 +510,8 @@
       case 'comments': url = '/admin/comments'; break;
       case 'invites': url = '/admin/invite-codes'; break;
       case 'logs': url = '/admin/logs-all'; break;
+      case 'deleted_users': url = '/admin/users/deleted'; break;
+      case 'deleted_comments': url = '/admin/comments/deleted'; break;
       default: return;
     }
     return await http({
@@ -572,6 +618,36 @@
               escapeHtml(item.remark || ''),
               formatDateTime(item.created_at),
               `<span class="action-icons"><i class="fas fa-trash-alt action-icon" title="删除"></i></span>`
+          ]
+      },
+      deleted_users: {
+          headers: ['手机号', '昵称', '邀请码', '注册时间', '心理和谐', '对话数', '登录状态', '操作'],
+          widths: ['15%', '15%', '12%', '17%', '9%', '8%', '9%', '8%'],
+          hasActions: true,
+          renderRow: (item) => [
+              `<span class="phone-toggle" data-full="${escapeHtml(item.phone)}">${maskPhone(item.phone)}</span>`,
+              escapeHtml(item.nickname || ''),
+              item.invite_code || '',
+              formatDate(item.created_at),
+              item.psychological_harmony_index,
+              item.conversation_count,
+              item.can_login 
+                  ? '<span class="status-allowed">允许</span>' 
+                  : '<span class="status-banned">禁止</span>',
+              `<span class="action-icons"><i class="fas fa-undo action-icon" title="还原"></i></span>` // 仅还原
+          ]
+      },
+      deleted_comments: {
+          headers: ['ID', '内容', 'IP', '时间', '已回复', '操作'],
+          widths: ['12%', '42%', '15%', '15%', '8%', '8%'],
+          hasActions: true,
+          renderRow: (item) => [
+              item.id,
+              escapeHtml(item.content),
+              item.ip_address,
+              formatDateTime(item.created_at),
+              item.replied ? '是' : '否',
+              `<span class="action-icons"><i class="fas fa-undo action-icon" title="还原"></i></span>` // 仅还原
           ]
       }
     };
@@ -783,6 +859,44 @@
     }
   }
 
+  // ---------- 13.4 还原冷却期数据处理 ----------
+  async function handleRestore(item) {
+      let message, url;
+      if (currentTab === 'deleted_users') {
+          message = `确定要还原用户 ${maskPhone(item.phone)} 吗？`;
+          url = `/admin/users/${item.id}/restore`;
+      } else if (currentTab === 'deleted_comments') {
+          message = `确定要还原评论 (ID: ${item.id}) 吗？`;
+          url = `/admin/comments/${item.id}/restore`;
+      } else return;
+
+      showConfirm(message, async () => {
+          try {
+              await http({ method: 'PUT', url, needAuth: true });
+              showToast('还原成功');
+
+              // 乐观更新：从当前列表中移除该项
+              const idx = currentDataList.findIndex(d => d.id == item.id);
+              if (idx !== -1) {
+                  currentDataList.splice(idx, 1);
+                  currentTotal = Math.max(0, currentTotal - 1);
+              }
+
+              if (currentDataList.length === 0 && currentPage > 1) {
+                  currentPage--;
+                  await loadData();
+              } else {
+                  renderTable(currentDataList, currentTotal);
+                  updatePaginationInfo();
+              }
+
+              await fetchStats();
+          } catch (err) {
+              showToast('还原失败: ' + err.message);
+          }
+      });
+  }
+
   // ======================== 14. 二次确认弹窗 ========================
   function showConfirm(msg, onYes) {
     confirmMessage.textContent = msg;
@@ -866,6 +980,9 @@
     // 每日摘要按钮
     triggerDailySummaryBtn.addEventListener('click', triggerDailySummary);
 
+    // 手动清理冷却期数据按钮
+    triggerCleanupBtn.addEventListener('click', triggerCleanup);
+
     // 日期联动
     logStartDate.addEventListener('change', function () {
       if (logStartDate.value) {
@@ -919,6 +1036,7 @@
 
       const editBtn = e.target.closest('.fa-pen');
       const delBtn = e.target.closest('.fa-trash-alt');
+      const restoreBtn = e.target.closest('.fa-undo');
       
       if (editBtn) {
           const row = e.target.closest('tr');
@@ -935,6 +1053,15 @@
           if (id) {
               const item = currentDataList.find(d => d.id == id);
               if (item) handleDelete(item);
+          }
+      }
+
+      if (restoreBtn) {
+          const row = e.target.closest('tr');
+          const id = row?.dataset.recordId;
+          if (id) {
+              const item = currentDataList.find(d => d.id == id);
+              if (item) handleRestore(item);
           }
       }
     });
@@ -970,6 +1097,7 @@
     
     setDefaultDates();
     await checkDailySummaryStatus();
+    await checkCleanupStatus();
     await switchTab('users');
     await fetchStats();
     bindEvents();

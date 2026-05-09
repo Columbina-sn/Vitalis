@@ -13,13 +13,14 @@ from crud.admin import get_admin_stats, create_admin_log, batch_create_invite_co
     disable_admin_login, get_users_paginated, get_comments_paginated, get_invite_codes_paginated, \
     get_admin_logs_all_paginated, get_user_by_id_admin, update_user_admin, soft_delete_user_admin, get_comment_by_id, \
     update_comment_admin, soft_delete_comment_admin, get_invite_code_by_id, update_invite_code_admin, \
-    delete_invite_code_admin, delete_admin_log_by_id
+    delete_invite_code_admin, delete_admin_log_by_id, get_deleted_users_paginated, get_deleted_comments_paginated, \
+    restore_user_admin, restore_comment_admin
 from models import AdminLog
 from schemas.admin import AdminStatsResponse, BatchInviteCodeRequest, BatchInviteCodeResponse, AdminLogItem, \
     AdminLogCursor, AdminLogsResponse, UserInAdminList, AdminUserListResponse, CommentInAdminList, \
     AdminCommentListResponse, InviteCodeItem, AdminInviteCodeListResponse, AdminLogItemFull, AdminLogListResponse, \
     UpdateUserRequest, UpdateCommentRequest, UpdateInviteCodeRequest
-from tasks import daily_summary_task
+from tasks import daily_summary_task, cleanup_soft_deleted_records
 from utills.response import success_response
 from utills.ip_utils import get_client_ip
 
@@ -493,3 +494,129 @@ async def trigger_daily_summary(
         remark_prefix="管理员主动触发"
     )
     return success_response(message="每日摘要生成任务已启动")
+
+
+# ---------- 已删除用户/评论列表 ----------
+@router.get("/users/deleted", summary="分页获取已删除用户")
+async def get_deleted_users(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        db: AsyncSession = Depends(get_db),
+        _admin: dict = Depends(get_current_admin_user)
+):
+    users, total = await get_deleted_users_paginated(db, page, page_size)
+    user_items = [UserInAdminList(**user) for user in users]
+    return success_response(
+        message="已删除用户列表查询成功",
+        data=AdminUserListResponse(total=total, list=user_items).model_dump()
+    )
+
+
+@router.get("/comments/deleted", summary="分页获取已删除评论")
+async def get_deleted_comments(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        db: AsyncSession = Depends(get_db),
+        _admin: dict = Depends(get_current_admin_user)
+):
+    comments, total = await get_deleted_comments_paginated(db, page, page_size)
+    comment_items = [
+        CommentInAdminList(
+            id=c.id, content=c.content, ip_address=c.ip_address, replied=c.replied, created_at=c.created_at
+        )
+        for c in comments
+    ]
+    return success_response(
+        message="已删除评论列表查询成功",
+        data=AdminCommentListResponse(total=total, list=comment_items).model_dump()
+    )
+
+
+# ---------- 还原操作 ----------
+@router.put("/users/{user_id}/restore", summary="还原已删除用户")
+async def restore_user(
+        user_id: int = Path(...),
+        request: Request = None,
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    user = await get_user_by_id_admin(db, user_id)
+    if not user or not user.is_deleted:
+        raise HTTPException(status_code=404, detail="用户不存在或未被删除")
+    await restore_user_admin(db, user_id)
+    await create_admin_log(
+        db, admin_phone=current_admin["phone"],
+        action_type="RESTORE_USER",
+        target_table="users", target_id=user_id,
+        request_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        remark=f"还原用户 {user.phone} 的数据"
+    )
+    return success_response(message="用户已还原")
+
+
+@router.put("/comments/{comment_id}/restore", summary="还原已删除评论")
+async def restore_comment(
+        comment_id: int = Path(...),
+        request: Request = None,
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    comment = await get_comment_by_id(db, comment_id)
+    if not comment or not comment.is_deleted:
+        raise HTTPException(status_code=404, detail="评论不存在或未被删除")
+    await restore_comment_admin(db, comment_id)
+    await create_admin_log(
+        db, admin_phone=current_admin["phone"],
+        action_type="RESTORE_COMMENT",
+        target_table="comment", target_id=comment_id,
+        request_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        remark=f"还原评论 ID：{comment_id}"
+    )
+    return success_response(message="评论已还原")
+
+
+# ---------- 手动触发数据清理 ----------
+@router.get("/cleanup/status", summary="查询今日是否已触发手动清理")
+async def cleanup_status(
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type == 'MANUAL_CLEANUP',
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    count = result.scalar() or 0
+    return success_response(message="查询成功", data={"alreadyTriggered": count > 0})
+
+
+@router.post("/cleanup/trigger", summary="手动触发数据清理")
+async def trigger_cleanup(
+        request: Request,
+        current_admin: dict = Depends(get_current_admin_user),
+        db: AsyncSession = Depends(get_db)
+):
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end = datetime.combine(date.today(), datetime.max.time())
+    stmt = select(func.count()).select_from(AdminLog).where(
+        AdminLog.action_type == 'MANUAL_CLEANUP',
+        AdminLog.created_at >= today_start,
+        AdminLog.created_at <= today_end
+    )
+    result = await db.execute(stmt)
+    if (result.scalar() or 0) > 0:
+        raise HTTPException(status_code=409, detail="今天已经触发过手动清理，不可重复执行")
+
+    # 调用任务函数，传入管理员信息用于日志记录
+    await cleanup_soft_deleted_records(
+        admin_phone=current_admin["phone"],
+        action_type="MANUAL_CLEANUP",
+        request_ip=get_client_ip(request),
+        remark_prefix="管理员手动触发"
+    )
+    return success_response(message="数据清理任务已启动")

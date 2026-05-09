@@ -444,3 +444,107 @@ async def delete_admin_log_by_id(db: AsyncSession, log_id: int):
     stmt = sql_delete(AdminLog).where(AdminLog.id == log_id)
     await db.execute(stmt)
     await db.flush()
+
+
+# --- 已删除数据查询 ---
+async def get_deleted_users_paginated(
+        db: AsyncSession,
+        page: int = 1,
+        page_size: int = 20
+) -> Tuple[List[Dict[str, Any]], int]:
+    """分页返回已删除用户 (is_deleted=True)"""
+    conv_count_sub = (
+        select(func.count(ConversationHistory.id))
+        .where(
+            ConversationHistory.user_id == User.id,
+            ConversationHistory.role == 'user'
+        )
+        .correlate(User)
+        .scalar_subquery()
+    )
+
+    total_stmt = select(func.count()).select_from(User).where(User.is_deleted == True)
+    total_res = await db.execute(total_stmt)
+    total = total_res.scalar() or 0
+
+    offset = (page - 1) * page_size
+    stmt = (
+        select(
+            User.id,
+            User.phone,
+            User.nickname,
+            User.invite_code,
+            User.created_at,
+            User.can_login,
+            UserStatus.psychological_harmony_index,
+            conv_count_sub.label("conversation_count"),
+        )
+        .where(User.is_deleted == True)
+        .outerjoin(UserStatus, User.id == UserStatus.user_id)
+        .order_by(User.deleted_at.desc(), User.id.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    users = [
+        {
+            "id": row.id,
+            "phone": row.phone,
+            "nickname": row.nickname,
+            "invite_code": row.invite_code,
+            "created_at": row.created_at,
+            "can_login": row.can_login,
+            "psychological_harmony_index": row.psychological_harmony_index,
+            "conversation_count": row.conversation_count,
+        }
+        for row in rows
+    ]
+    return users, total
+
+
+async def get_deleted_comments_paginated(
+        db: AsyncSession,
+        page: int = 1,
+        page_size: int = 20
+) -> Tuple[List[Comment], int]:
+    """分页返回已删除评论 (is_deleted=True)"""
+    total_stmt = select(func.count()).select_from(Comment).where(Comment.is_deleted == True)
+    total_res = await db.execute(total_stmt)
+    total = total_res.scalar() or 0
+
+    offset = (page - 1) * page_size
+    stmt = (
+        select(Comment)
+        .where(Comment.is_deleted == True)
+        .order_by(Comment.deleted_at.desc(), Comment.id.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    result = await db.execute(stmt)
+    comments = result.scalars().all()
+    return list(comments), total
+
+
+# --- 还原软删除 ---
+async def restore_user_admin(db: AsyncSession, user_id: int) -> None:
+    """还原用户：将 is_deleted 设为 False，deleted_at 置空"""
+    stmt = (
+        sql_update(User)
+        .where(User.id == user_id)
+        .values(is_deleted=False, deleted_at=None, updated_at=datetime.now())
+    )
+    await db.execute(stmt)
+    await db.flush()
+
+
+async def restore_comment_admin(db: AsyncSession, comment_id: int) -> None:
+    """还原评论：将 is_deleted 设为 False，deleted_at 置空"""
+    stmt = (
+        sql_update(Comment)
+        .where(Comment.id == comment_id)
+        .values(is_deleted=False, deleted_at=None)
+    )
+    await db.execute(stmt)
+    await db.flush()
