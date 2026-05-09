@@ -2,3 +2,4 @@
 __pycache__/
 .idea/
 项目结构 数据库结构 及 开发日志.txt
+db_backups/

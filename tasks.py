@@ -192,3 +192,31 @@ async def run_cleanup_loop():
         except Exception as e:
             print(f"定时清理任务异常：{e}")
             await asyncio.sleep(60)
+
+
+async def backup_database_task():
+    """在线程池中执行备份操作（因为 mysqldump 是阻塞操作）"""
+    loop = asyncio.get_running_loop()
+    from utills.backup import perform_backup
+    await loop.run_in_executor(None, perform_backup)
+
+
+async def run_backup_loop():
+    """每天凌晨 2 点执行一次数据库备份"""
+    while True:
+        try:
+            now = datetime.now(TZ)
+            next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+            wait_seconds = (next_run - now).total_seconds()
+            print(f"[备份循环] 下次备份时间: {next_run}")
+            await asyncio.sleep(wait_seconds)
+
+            print("[备份循环] 开始执行备份...")
+            await backup_database_task()
+            print("[备份循环] 备份完成。")
+        except Exception as e:
+            print(f"[备份循环] 备份异常: {e}")
+            # 出错后等 1 分钟再继续循环，防止连续崩溃
+            await asyncio.sleep(60)

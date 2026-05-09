@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from starlette.middleware.cors import CORSMiddleware
 
-from tasks import run_daily_task_loop, run_cleanup_loop
+from tasks import run_daily_task_loop, run_cleanup_loop, run_backup_loop
 from utills.exception_handlers import register_exception_handlers
 
 from routers import auth, comment, user, chat, admin
@@ -17,14 +17,23 @@ from routers import auth, comment, user, chat, admin
 # 使用 asynccontextmanager 定义应用生命周期
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动每日摘要任务
+    # 启动所有后台任务
     task_summary = asyncio.create_task(run_daily_task_loop())
-    # 启动定时清理任务
     task_cleanup = asyncio.create_task(run_cleanup_loop())
+    task_backup = asyncio.create_task(run_backup_loop())
+    print("后台任务已启动：每日摘要 + 软删除清理 + 数据库备份")
+
     yield
-    # 关闭时取消任务
-    task_summary.cancel()
-    task_cleanup.cancel()
+
+    # 安全关闭所有后台任务
+    for t in (task_summary, task_cleanup, task_backup):
+        t.cancel()
+    # 等待所有任务彻底结束（避免 cancel 后抛出未捕获异常）
+    try:
+        await asyncio.gather(task_summary, task_cleanup, task_backup, return_exceptions=True)
+    except Exception:
+        pass
+    print("后台任务已全部取消")
 
 # 使用 lifespan 参数创建 FastAPI 实例
 app = FastAPI(title="Vitalis AI 后端", version="0.2.0", lifespan=lifespan)
