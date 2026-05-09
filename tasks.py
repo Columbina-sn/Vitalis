@@ -26,17 +26,29 @@ async def daily_summary_task(
     remark_prefix="定时任务自动触发"
 ):
     """
-    定时任务：每天凌晨4点运行，为所有昨天有对话记录的用户生成记忆快照。
+    定时任务 / 管理员手动触发的每日总结生成。
+    触发时间规则：
+        - 凌晨 0:00 ~ 4:59  → 统计「昨天」全天数据（00:00:00 ~ 24:00:00）
+        - 其他时间（5:00~23:59）→ 统计「今天」从 00:00:00 到当前时刻的数据
     """
     async with AsyncSessionLocal() as db:
-        # 使用东八区时间，查询昨天的对话
         now = datetime.now(TZ)
-        today = now.date()
-        yesterday = today - timedelta(days=1)
+        hour = now.hour
 
-        start_time = datetime.combine(yesterday, datetime.min.time(), tzinfo=TZ)
-        end_time = start_time + timedelta(days=1)
+        if hour < 5:
+            # 凌晨时段：统计昨天全天
+            target_date = now.date() - timedelta(days=1)
+            start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
+            end_time = start_time + timedelta(days=1)   # 昨天 00:00:00 ~ 今天 00:00:00
+            date_desc = target_date.isoformat()
+        else:
+            # 白天 / 晚上：统计今天 0 点到现在
+            target_date = now.date()
+            start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
+            end_time = now                               # 今天 00:00:00 ~ 当前时刻
+            date_desc = target_date.isoformat()
 
+        # 查询该时段内有对话的所有用户
         stmt = (
             select(ConversationHistory.user_id)
             .where(
@@ -49,7 +61,7 @@ async def daily_summary_task(
         user_ids = result.scalars().all()
 
         for uid in user_ids:
-            # 获取该用户昨天所有对话，按时间正序
+            # 获取该用户在该时段内的所有对话，按时间正序排列
             conv_stmt = (
                 select(ConversationHistory)
                 .where(
@@ -64,7 +76,7 @@ async def daily_summary_task(
             if not convs:
                 continue
 
-            # 构造文本数组
+            # 构造文本列表，标识角色
             conv_texts = []
             for c in convs:
                 role_str = "小元" if c.role.value == "assistant" else "用户"
@@ -74,23 +86,26 @@ async def daily_summary_task(
             user = await db.get(User, uid)
             nickname = user.nickname if user and user.nickname else "用户"
 
+            # 生成总结
             summary_text = await generate_daily_summary(conv_texts, nickname)
 
+            # 创建记忆快照
             snapshot = MemorySnapshot(
                 user_id=uid,
                 summary=summary_text,
-                created_at=datetime.now(TZ)  # 使用带时区的时间
+                created_at=now   # 快照记录生成时间为当前触发时间
             )
             db.add(snapshot)
 
-        # 记录管理员日志
+        # 记录管理员日志，标注统计的日期范围
+        remark = f"{remark_prefix}，统计日期 {date_desc}，涉及 {len(user_ids)} 位用户"
         await create_admin_log(
             db=db,
             admin_phone=admin_phone,
             action_type=action_type,
             request_ip=request_ip,
             user_agent=user_agent,
-            remark=f"{remark_prefix}，生成记忆快照，涉及 {len(user_ids)} 位用户"
+            remark=remark
         )
         await db.commit()
 

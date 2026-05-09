@@ -345,11 +345,11 @@ async def get_status_history(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取当前用户在指定维度上的近10次历史状态记录
+    获取当前用户在指定维度上的近16次历史状态记录
     - dimension: 必须为 physical_vitality, emotional_tone, relationship_connection, self_worth, meaning_direction, psychological_harmony_index 之一
     """
     history_data = await get_status_history_by_dimension(
-        db, current_user.id, dimension.value, limit=15
+        db, current_user.id, dimension.value, limit=16
     )
     items = [StatusHistoryItem(recorded_at=item["recorded_at"], value=item["value"]) for item in history_data]
     return StatusHistoryResponse(dimension=dimension, history=items)
