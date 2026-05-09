@@ -58,6 +58,7 @@
   const inviteResultList = document.getElementById('inviteResultList');
   const triggerDailySummaryBtn = document.getElementById('triggerDailySummaryBtn');
   const triggerCleanupBtn = document.getElementById('triggerCleanupBtn');
+  const cleanupStatusText = document.getElementById('cleanupStatusText');
 
   // 模态框
   const adminLogsModal = document.getElementById('adminLogsModal');
@@ -225,8 +226,8 @@
       });
       renderInviteCodes(response.codes, response.expiry_time);
       showToast(`成功生成 ${response.codes.length} 个邀请码`);
-      // 生成后重新拉取统计数据，保证数字准确
-      await fetchStats();
+      // 【修改】生成后自动点击刷新按钮，保证列表和统计最新
+      refreshBtn?.click();
     } catch (error) {
       showToast(error.message || '生成邀请码失败');
     }
@@ -439,6 +440,8 @@
         triggerDailySummaryBtn.disabled = true;
         triggerDailySummaryBtn.style.opacity = '0.6';
         dailySummaryStatusText.textContent = '📅 今日已执行';
+        // 【修改】操作成功后自动刷新数据
+        refreshBtn?.click();
     } catch (err) {
         if (err.message.includes('已经手动触发过')) {
             triggerDailySummaryBtn.disabled = true;
@@ -479,8 +482,8 @@
               triggerCleanupBtn.disabled = true;
               triggerCleanupBtn.style.opacity = '0.6';
               cleanupStatusText.textContent = '🧹 今日已执行';
-              // 清理后刷新统计数据
-              await fetchStats();
+              // 【修改】清理后自动刷新数据
+              refreshBtn?.click();
           } catch (err) {
               if (err.message.includes('已经触发过')) {
                   triggerCleanupBtn.disabled = true;
@@ -776,16 +779,18 @@
                   currentTotal = Math.max(0, currentTotal - 1);
               }
 
+              // 【修改】优化刷新逻辑，避免重复请求
               if (currentDataList.length === 0 && currentPage > 1) {
                   currentPage--;
                   await loadData();
+                  // 因为已经重新加载了数据，只需补充统计数据
+                  await fetchStats();
               } else {
                   renderTable(currentDataList, currentTotal);
                   updatePaginationInfo();
+                  // 否则通过刷新按钮统一加载数据和统计
+                  refreshBtn?.click();
               }
-
-              // 删除后重新获取统计数据
-              await fetchStats();
           } catch (err) {
               showToast('删除失败: ' + err.message);
           } finally {
@@ -850,8 +855,8 @@
             }
         }
 
-        // 编辑后重新获取统计数据
-        await fetchStats();
+        // 【修改】编辑保存后自动点击刷新按钮，保证数据与服务端一致
+        refreshBtn?.click();
     } catch (err) {
         showToast('保存失败: ' + err.message);
     } finally {
@@ -882,15 +887,16 @@
                   currentTotal = Math.max(0, currentTotal - 1);
               }
 
+              // 【修改】优化刷新逻辑，避免重复请求
               if (currentDataList.length === 0 && currentPage > 1) {
                   currentPage--;
                   await loadData();
+                  await fetchStats();
               } else {
                   renderTable(currentDataList, currentTotal);
                   updatePaginationInfo();
+                  refreshBtn?.click();
               }
-
-              await fetchStats();
           } catch (err) {
               showToast('还原失败: ' + err.message);
           }
