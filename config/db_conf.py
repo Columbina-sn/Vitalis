@@ -14,7 +14,7 @@ if not ASYNC_DATABASE_URL:
 # 创建异步数据库引擎实例
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,  # 数据库连接地址
-    echo=True,  # 输出SQL语句日志，方便调试
+    echo=False,  # 输出SQL语句日志，方便调试
     pool_size=10,  # 连接池中始终保持10个活跃连接
     max_overflow=20  # 当连接池不够用时，最多额外创建20个连接
 )

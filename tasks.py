@@ -1,6 +1,5 @@
 # tasks.py
 import os
-
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -14,6 +13,9 @@ from config.db_conf import AsyncSessionLocal
 from crud.admin import create_admin_log
 from models import ConversationHistory, MemorySnapshot, User, Comment
 
+# ---------- 新增日志模块 ----------
+from utills.logging_conf import get_logger
+logger = get_logger(__name__)
 
 TZ = timezone(timedelta(hours=8))
 
@@ -36,19 +38,16 @@ async def daily_summary_task(
         hour = now.hour
 
         if hour < 5:
-            # 凌晨时段：统计昨天全天
             target_date = now.date() - timedelta(days=1)
             start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
-            end_time = start_time + timedelta(days=1)   # 昨天 00:00:00 ~ 今天 00:00:00
+            end_time = start_time + timedelta(days=1)
             date_desc = target_date.isoformat()
         else:
-            # 白天 / 晚上：统计今天 0 点到现在
             target_date = now.date()
             start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
-            end_time = now                               # 今天 00:00:00 ~ 当前时刻
+            end_time = now
             date_desc = target_date.isoformat()
 
-        # 查询该时段内有对话的所有用户
         stmt = (
             select(ConversationHistory.user_id)
             .where(
@@ -61,7 +60,6 @@ async def daily_summary_task(
         user_ids = result.scalars().all()
 
         for uid in user_ids:
-            # 获取该用户在该时段内的所有对话，按时间正序排列
             conv_stmt = (
                 select(ConversationHistory)
                 .where(
@@ -72,32 +70,26 @@ async def daily_summary_task(
                 .order_by(ConversationHistory.created_at.asc())
             )
             convs = (await db.execute(conv_stmt)).scalars().all()
-
             if not convs:
                 continue
 
-            # 构造文本列表，标识角色
             conv_texts = []
             for c in convs:
                 role_str = "小元" if c.role.value == "assistant" else "用户"
                 conv_texts.append(f"[{role_str}] {c.content}")
 
-            # 获取用户昵称（如果存在）
             user = await db.get(User, uid)
             nickname = user.nickname if user and user.nickname else "用户"
 
-            # 生成总结
             summary_text = await generate_daily_summary(conv_texts, nickname)
 
-            # 创建记忆快照
             snapshot = MemorySnapshot(
                 user_id=uid,
                 summary=summary_text,
-                created_at=now   # 快照记录生成时间为当前触发时间
+                created_at=now
             )
             db.add(snapshot)
 
-        # 记录管理员日志，标注统计的日期范围
         remark = f"{remark_prefix}，统计日期 {date_desc}，涉及 {len(user_ids)} 位用户"
         await create_admin_log(
             db=db,
@@ -108,6 +100,7 @@ async def daily_summary_task(
             remark=remark
         )
         await db.commit()
+        logger.info(f"已完成每日摘要生成：{remark}")  # 信息替换
 
 
 async def run_daily_task_loop():
@@ -121,8 +114,8 @@ async def run_daily_task_loop():
             await asyncio.sleep(wait_seconds)
             await daily_summary_task()
         except Exception as e:
-            print(f"每日总结任务异常：{e}")
-            await asyncio.sleep(60)  # 异常后等待1分钟再重试，避免高频错误
+            logger.error("每日总结任务异常", exc_info=True)
+            await asyncio.sleep(60)
 
 
 AVATAR_UPLOAD_DIR = os.getenv("AVATAR_UPLOAD_DIR", "static_pic/avatar")
@@ -138,9 +131,8 @@ async def cleanup_soft_deleted_records(
     """每天凌晨3点运行，物理删除冷却期到期的用户和评论"""
     async with AsyncSessionLocal() as db:
         try:
-            now = datetime.now(TZ)  # 统一使用东八区时间
+            now = datetime.now(TZ)
 
-            # 清理用户（注销后保留30天）
             expire_user_date = now - timedelta(days=30)
             stmt = select(User).where(
                 User.is_deleted == True,
@@ -150,7 +142,6 @@ async def cleanup_soft_deleted_records(
             expired_users = result.scalars().all()
 
             for user in expired_users:
-                # 清理头像文件
                 try:
                     if user.avatar and user.avatar != DEFAULT_AVATAR_URL:
                         avatar_relative = user.avatar.lstrip("/")
@@ -160,11 +151,10 @@ async def cleanup_soft_deleted_records(
                             if os.path.exists(file_path) and os.path.isfile(file_path):
                                 os.remove(file_path)
                 except Exception as e:
-                    print(f"清理用户头像失败 user_id={user.id}: {e}")
-                # 物理删除用户（级联删除所有关联数据）
+                    logger.error(f"清理用户头像失败 user_id={user.id}", exc_info=True)
+
                 await db.delete(user)
 
-            # 清理评论（软删除后保留90天）
             expire_comment_date = now - timedelta(days=90)
             stmt = select(Comment).where(
                 Comment.is_deleted == True,
@@ -177,7 +167,6 @@ async def cleanup_soft_deleted_records(
 
             await db.commit()
 
-            # 记录管理员日志
             if expired_users or expired_comments:
                 await create_admin_log(
                     db=db,
@@ -187,14 +176,13 @@ async def cleanup_soft_deleted_records(
                     remark=f"{remark_prefix}，删除{len(expired_users)}个用户、{len(expired_comments)}条评论"
                 )
                 await db.commit()
-                print(f"[定时清理] 已清理 {len(expired_users)} 用户, {len(expired_comments)} 评论")
+                logger.info(f"已清理 {len(expired_users)} 用户, {len(expired_comments)} 评论")  # 信息替换
         except Exception as e:
             await db.rollback()
-            print(f"定时清理任务失败: {e}")
+            logger.error("定时清理任务失败", exc_info=True)
 
 
 async def run_cleanup_loop():
-    """每天凌晨3点执行一次清理"""
     while True:
         try:
             now = datetime.now(TZ)
@@ -205,7 +193,7 @@ async def run_cleanup_loop():
             await asyncio.sleep(wait_seconds)
             await cleanup_soft_deleted_records()
         except Exception as e:
-            print(f"定时清理任务异常：{e}")
+            logger.error("定时清理任务异常", exc_info=True)
             await asyncio.sleep(60)
 
 
@@ -221,7 +209,6 @@ async def backup_database_task(
     from utills.backup import perform_backup
     await loop.run_in_executor(None, perform_backup)
 
-    # 记录备份日志（成功执行后）
     try:
         async with AsyncSessionLocal() as db:
             await create_admin_log(
@@ -234,11 +221,10 @@ async def backup_database_task(
             )
             await db.commit()
     except Exception as e:
-        print(f"备份日志记录失败: {e}")
+        logger.error("备份日志记录失败", exc_info=True)
 
 
 async def run_backup_loop():
-    """每天凌晨 2 点执行一次数据库备份"""
     while True:
         try:
             now = datetime.now(TZ)
@@ -246,13 +232,12 @@ async def run_backup_loop():
             if now >= next_run:
                 next_run += timedelta(days=1)
             wait_seconds = (next_run - now).total_seconds()
-            print(f"[备份循环] 下次备份时间: {next_run}")
+            logger.info(f"下次备份时间: {next_run}")  # 信息替换
             await asyncio.sleep(wait_seconds)
 
-            print("[备份循环] 开始执行备份...")
+            logger.info("开始执行备份...")
             await backup_database_task()
-            print("[备份循环] 备份完成。")
+            logger.info("备份完成。")
         except Exception as e:
-            print(f"[备份循环] 备份异常: {e}")
-            # 出错后等 1 分钟再继续循环，防止连续崩溃
+            logger.error("备份循环异常", exc_info=True)
             await asyncio.sleep(60)
