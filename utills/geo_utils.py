@@ -2,6 +2,10 @@
 from typing import Optional
 import requests
 
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
+
 
 def get_city_from_ip(ip: str) -> Optional[str]:
     """
@@ -33,5 +37,5 @@ def get_city_from_ip(ip: str) -> Optional[str]:
             return addr
         return None
     except Exception as e:
-        print(f"在线IP解析失败: {e}")
+        logger.error(f"在线IP解析失败: {e}", exc_info=True)
         return None

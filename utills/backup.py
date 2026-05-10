@@ -8,6 +8,10 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
+
 load_dotenv()
 
 # 备份文件存放目录
@@ -110,7 +114,7 @@ def _cleanup_old_backups():
                 file_time = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
                 if file_time < cutoff:
                     f.unlink()   # 删除文件
-                    print(f"[备份清理] 删除过期备份: {f.name}")
+                    logger.info(f"删除过期备份: {f.name}")
         except (ValueError, IndexError):
             pass
 
@@ -162,7 +166,7 @@ def perform_backup():
 
     if gzip_available:
         backup_file = BACKUP_DIR / f"{base_name}.sql.gz"
-        print(f"[备份] 开始压缩备份数据库 {database} -> {backup_file}")
+        logger.info(f"开始压缩备份数据库 {database} -> {backup_file}")
         # 打开目标文件，准备写入
         with open(backup_file, "wb") as f_out:
             # 启动两个子进程：mysqldump 和 gzip，用管道连接
@@ -195,7 +199,7 @@ def perform_backup():
     else:
         # 没有 gzip，直接保存为 .sql 文件
         backup_file = BACKUP_DIR / f"{base_name}.sql"
-        print(f"[备份] gzip 不可用，保存为未压缩文件 -> {backup_file}")
+        logger.info(f"gzip 不可用，保存为未压缩文件 -> {backup_file}")
         result = subprocess.run(
             dump_cmd,
             shell=True,
@@ -207,7 +211,7 @@ def perform_backup():
             raise RuntimeError(f"mysqldump 失败: {result.stderr}")
         backup_file.write_text(result.stdout, encoding="utf-8")
 
-    print(f"[备份] 成功备份至 {backup_file}")
+    logger.info(f"成功备份至 {backup_file}")
     _cleanup_old_backups()
     return backup_file
 

@@ -9,6 +9,10 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
+
 load_dotenv()
 
 SMTP_SERVER = "smtp.qq.com"
@@ -27,7 +31,7 @@ def send_admin_login_alert(login_ip: str, login_time: datetime = None) -> bool:
     :return: 发送成功返回True，失败返回False
     """
     if not QQ_EMAIL_FROM or not QQ_EMAIL_AUTH_CODE or not ADMIN_EMAIL_ALERT_TO:
-        print("[邮件] 缺少邮箱配置，跳过发送")
+        logger.warning("缺少邮箱配置，跳过发送")
         return False
 
     if login_time is None:
@@ -64,14 +68,14 @@ def send_admin_login_alert(login_ip: str, login_time: datetime = None) -> bool:
         server.sendmail(QQ_EMAIL_FROM, [ADMIN_EMAIL_ALERT_TO], msg.as_string())
         server.quit()
 
-        print(f"[邮件] 管理员登录提醒已发送至 {ADMIN_EMAIL_ALERT_TO}")
+        logger.info(f"管理员登录提醒已发送至 {ADMIN_EMAIL_ALERT_TO}")
         return True
     except smtplib.SMTPAuthenticationError as e:
-        print(f"[邮件] 认证失败，请检查QQ邮箱授权码: {e}")
+        logger.error(f"认证失败，请检查QQ邮箱授权码: {e}", exc_info=True)
         return False
     except smtplib.SMTPException as e:
-        print(f"[邮件] SMTP协议错误: {e}")
+        logger.error(f"SMTP协议错误: {e}", exc_info=True)
         return False
     except Exception as e:
-        print(f"[邮件] 发送失败，其他错误: {e}")
+        logger.error(f"邮件发送失败，其他错误: {e}", exc_info=True)
         return False

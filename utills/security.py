@@ -1,7 +1,6 @@
 # utills/security.py
 # 导入密码加密相关的库
 import uuid
-import warnings
 
 from passlib.context import CryptContext
 
@@ -17,6 +16,10 @@ from jose import jwt
 from jose.exceptions import JWTError
 # 导入 dotenv 库，用于从 .env 文件加载环境变量（方便管理敏感信息）
 from dotenv import load_dotenv
+
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 # 创建一个密码上下文对象，用于处理密码的哈希（加密）和验证
@@ -43,7 +46,7 @@ load_dotenv()
 # 从环境变量中获取秘钥，用于签名 JWT（必须保密，不能泄露）
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
 if SECRET_KEY == "dev-secret-key-change-in-production":
-    warnings.warn("⚠️ SECRET_KEY 使用默认开发密钥，请在生产环境中设置！")
+    logger.warning("SECRET_KEY 使用默认开发密钥，请在生产环境中设置！")
 
 # 从环境变量中获取加密算法，默认使用 HS256（一种常见的对称加密算法）
 ALGORITHM = os.getenv("ALGORITHM", "HS512")
