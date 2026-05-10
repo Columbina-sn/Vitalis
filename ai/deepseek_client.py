@@ -4,6 +4,10 @@ import json
 import re
 import httpx
 
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
+
 # ---------- 配置 ----------
 API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 API_BASE = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
@@ -93,6 +97,7 @@ async def deepseek_chat_messages(
             return extract_json_from_text(content)
         except ValueError as e:
             if attempt < MAX_JSON_FIX_RETRIES and retry_on_json_fail:
+                logger.warning(f"JSON解析失败，第{attempt+1}次重试，错误: {e}")
                 # 追加修正消息
                 msgs.append({"role": "assistant", "content": content})
                 msgs.append({"role": "user", "content":

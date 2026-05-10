@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import List
 
 from ai.deepseek_client import deepseek_chat_messages
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 def build_summary_messages(
@@ -50,7 +53,8 @@ async def generate_daily_summary(
         summary = result.get("summary", "").strip()
         if not summary:
             summary = "暂无有效摘要"
+        logger.debug(f"生成摘要成功: {summary[:50]}...")
         return summary
     except Exception as e:
-        print(f"[summaryAI] 生成摘要失败: {e}")
+        logger.error(f"生成摘要失败: {e}", exc_info=True)
         return "（摘要生成失败）"

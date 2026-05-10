@@ -2,6 +2,9 @@
 from datetime import datetime
 from typing import Dict, Any, List
 from ai.deepseek_client import deepseek_chat_messages
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 def build_messages(
@@ -28,7 +31,7 @@ def build_messages(
         recent_user_lines = list(reversed(recent_user_lines))   # 最早发言 → 最新发言
         recent_user_lines.append(user_message)
         recent_user_text = "用户最近的发言(从早到晚):\n" + "\n".join(
-            f"    {i+1}. {line}" for i, line in enumerate(recent_user_lines)
+            f"    {i + 1}. {line}" for i, line in enumerate(recent_user_lines)
         )
     else:
         recent_user_text = ""
@@ -130,7 +133,7 @@ def build_messages(
      - 若只有日期没有钟点 → 默认使用 **09:00**（如 "2026-05-05T09:00"）。
      - 如果完全没有时间指向（如“我要复习”且未提何时）→ scheduled_time 设为 **null**。
      - 过滤原则：如果用户描述的只是当下的抱怨、临时安排或无法回避的杂事，且语气明显消极（如“义务”“无奈”“被拉去”等），不要创建日程。日程应留给用户真正想完成或记住的事项。
-     
+
    用户最近部分日程：（如需编辑删除，必须在下列日程中选title，不要被用户消息干扰！）
    {schedules_text}
    {comp_text}
@@ -175,7 +178,7 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
     try:
         result = await deepseek_chat_messages(messages, temperature=0.2)
     except Exception as e:
-        print(f"[productivityAI] 调用失败: {e}")
+        logger.error(f"工作AI调用失败: {e}", exc_info=True)
         return _fallback_result()
 
     return {

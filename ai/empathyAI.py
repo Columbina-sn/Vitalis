@@ -2,6 +2,9 @@
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from ai.deepseek_client import deepseek_chat_text
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 # ---------- 综合状态描述（分阶段 + PHI 整体评价） ----------
@@ -239,7 +242,7 @@ async def analog_ai(messages: List[Dict[str, str]]) -> dict:
         reply = await deepseek_chat_text(messages)
         return {"reply": reply.strip() or "刚刚卡住了，你接着说。"}
     except Exception as e:
-        print(f"[empathyAI] 调用失败: {e}")
+        logger.error(f"情感AI调用失败: {e}", exc_info=True)
         return {
             "reply": "啊，脑子卡了一下——你刚说什么来着？\n\n（开发者补丁：小元掉线了一会儿，现在回来了。)"
         }
