@@ -140,7 +140,6 @@ async def add_or_update_memory_anchor(
     existing = result.scalar_one_or_none()
     if existing:
         existing.confidence = confidence
-        existing.last_mentioned_at = datetime.now()
         existing.updated_at = datetime.now()
         return existing
     else:
