@@ -9,6 +9,9 @@ from models import User, UserStatus, InviteCode, UserStatusHistory, MemorySnapsh
     UserSchedule
 from utills.psychological_harmony_index import calculate_phi
 from utills.security import get_hash_password
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 async def get_user_by_phone(db: AsyncSession, phone: str) -> Optional[User]:
@@ -35,6 +38,7 @@ async def create_user(db: AsyncSession, phone: str, password: str, invite_code: 
     )
     db.add(user)
     await db.flush()  # 获得自增 id
+    logger.info(f"新建用户 id={user.id}, phone={phone}")
     return user
 
 
@@ -45,6 +49,7 @@ async def create_user_status(db: AsyncSession, user_id: int) -> UserStatus:
     status.psychological_harmony_index = phi
     db.add(status)
     await db.flush()
+    logger.info(f"为用户 {user_id} 创建初始状态")
     return status
 
 
@@ -71,6 +76,7 @@ async def update_user_nickname(db: AsyncSession, user_id: int, new_nickname: str
     if user:
         user.nickname = new_nickname
         await db.flush()
+        logger.info(f"用户 {user_id} 昵称更新为 {new_nickname}")
     return user
 
 
@@ -80,6 +86,7 @@ async def update_user_avatar(db: AsyncSession, user_id: int, avatar_url: str) ->
     if user:
         user.avatar = avatar_url
         await db.flush()
+        logger.info(f"用户 {user_id} 更新头像")
     return user
 
 
@@ -108,6 +115,7 @@ async def soft_delete_user_account(db: AsyncSession, user: User) -> None:
     user.current_login_ip = None
     user.current_location = None
     await db.commit()
+    logger.info(f"用户 {user.id} 已软删除")
 
 
 async def get_user_status_by_user_id(db: AsyncSession, user_id: int) -> Optional[UserStatus]:
@@ -141,6 +149,7 @@ async def update_user_password(db: AsyncSession, user_id: int, hashed_password: 
     if user:
         user.password = hashed_password
         await db.flush()
+        logger.info(f"用户 {user_id} 更新密码")
     return user
 
 

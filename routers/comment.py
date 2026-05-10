@@ -10,8 +10,10 @@ from config.db_conf import get_db
 from crud import comment
 from schemas.comment import CommentCreate
 from utills.ip_utils import get_client_ip
-
 from utills.response import success_response
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/comment", tags=["评论"])
 
@@ -79,4 +81,5 @@ async def post_new_comment(
         raise HTTPException(status_code=429, detail="每小时最多发表5条评论")
 
     result = await comment.add_new_comment(db, data.content, client_ip)
+    logger.info(f"新评论来自 IP {client_ip}")
     return success_response(message="添加评论成功", data=result)

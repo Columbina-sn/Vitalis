@@ -9,6 +9,9 @@ from sqlalchemy import update as sql_update,  delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import AdminLog, ConversationHistory, InviteCode, Comment, User, SystemConfig, UserStatus
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 async def create_admin_log(
@@ -172,6 +175,7 @@ async def batch_create_invite_codes(
         codes.append(code)
 
     await db.flush()  # 确保插入成功，但事务由上层提交
+    logger.info(f"管理员批量生成 {count} 个邀请码，有效期 {expiry_days} 天")
     return codes, expiry_time
 
 
@@ -235,6 +239,8 @@ async def disable_admin_login(db: AsyncSession) -> bool:
     )
     result = await db.execute(stmt)
     await db.flush()
+    if result.rowcount > 0:
+        logger.info("管理员登录入口已关闭 (admin_login_enabled → false)")
     return result.rowcount > 0
 
 
@@ -421,6 +427,7 @@ async def soft_delete_user_admin(db: AsyncSession, user_id: int) -> None:
     )
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员软删除用户 {user_id}")
 
 
 async def soft_delete_comment_admin(db: AsyncSession, comment_id: int) -> None:
@@ -432,18 +439,21 @@ async def soft_delete_comment_admin(db: AsyncSession, comment_id: int) -> None:
     )
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员软删除评论 {comment_id}")
 
 
 async def delete_invite_code_admin(db: AsyncSession, invite_id: int):
     stmt = sql_delete(InviteCode).where(InviteCode.id == invite_id)
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员删除邀请码 {invite_id}")
 
 
 async def delete_admin_log_by_id(db: AsyncSession, log_id: int):
     stmt = sql_delete(AdminLog).where(AdminLog.id == log_id)
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员删除操作日志 {log_id}")
 
 
 # --- 已删除数据查询 ---
@@ -537,6 +547,7 @@ async def restore_user_admin(db: AsyncSession, user_id: int) -> None:
     )
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员还原用户 {user_id}")
 
 
 async def restore_comment_admin(db: AsyncSession, comment_id: int) -> None:
@@ -548,3 +559,4 @@ async def restore_comment_admin(db: AsyncSession, comment_id: int) -> None:
     )
     await db.execute(stmt)
     await db.flush()
+    logger.info(f"管理员还原评论 {comment_id}")

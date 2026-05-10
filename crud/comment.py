@@ -5,6 +5,9 @@ from sqlalchemy import select, func, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import Comment
 from datetime import datetime
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 async def get_comments_cursor_paginated(
@@ -93,6 +96,7 @@ async def add_new_comment(db: AsyncSession, content: str, ip: str):
     db.add(comment)
     await db.commit()
     await db.refresh(comment)
+    logger.info(f"新评论来自 IP {ip}")
     return comment
 
 

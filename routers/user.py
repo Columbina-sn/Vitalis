@@ -29,6 +29,9 @@ from utills.html_export import generate_export_html
 from utills.psychological_harmony_index import calculate_phi
 from utills.response import success_response
 from utills.security import verify_password, get_hash_password
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/user", tags=["用户"])
 
@@ -87,6 +90,7 @@ async def mark_intro_seen(
     """用户完成新手引导后调用，将 has_seen_intro 设置为 True"""
     current_user.has_seen_intro = True
     await db.commit()
+    logger.info(f"用户 {current_user.id} 完成新手引导")
     return success_response(message="标记新手引导完成成功", data={"has_seen_intro": True})
 
 
@@ -116,6 +120,7 @@ async def change_nickname(
     updated_user = await update_user_nickname(db, current_user.id, req.nickname)
     if not updated_user:
         raise HTTPException(status_code=500, detail="更新失败")
+    logger.info(f"用户 {current_user.id} 修改昵称为 {req.nickname}")
     return success_response(message="修改昵称成功", data={"nickname": updated_user.nickname})
 
 
@@ -136,7 +141,7 @@ def delete_old_avatar(old_avatar_url: str):
         try:
             os.remove(file_path)
         except Exception as e:
-            print(f"删除旧头像失败: {e}")
+            logger.error(f"删除旧头像失败: {e}", exc_info=True)
 
 
 @router.post("/avatar", summary="修改用户头像")
@@ -199,6 +204,7 @@ async def change_avatar(
     # 6. 删除旧头像文件
     delete_old_avatar(old_avatar_url)
 
+    logger.info(f"用户 {current_user.id} 上传新头像")
     return success_response(
         message="修改头像成功",
         data=UpdateAvatarResponse(avatar_url=new_avatar_url)
@@ -216,6 +222,7 @@ async def change_theme_mode(
     if not updated_user:
         raise HTTPException(status_code=500, detail="主题修改失败")
     await db.commit()
+    logger.info(f"用户 {current_user.id} 修改主题模式为 {req.theme_mode}")
     return success_response(message="主题模式已更新", data={"theme_mode": req.theme_mode})
 
 
@@ -245,6 +252,7 @@ async def logout(
             .values(is_valid=False)
         )
     await db.commit()
+    logger.info(f"用户 {current_user.id} 安全退出")
     return success_response(message="已安全退出")
 
 
@@ -279,10 +287,11 @@ async def delete_account(
                 os.remove(file_path)
             except Exception as e:
                 # 文件删除失败不影响账户注销流程，仅记录日志
-                print(f"删除头像文件失败: {e}")
+                logger.error(f"删除头像文件失败: {e}", exc_info=True)
 
     # 执行软删除
     await soft_delete_user_account(db, current_user)
+    logger.info(f"用户 {current_user.id} 已注销账户")
 
     return success_response(message="账户已成功注销", data=None)
 
@@ -335,6 +344,7 @@ async def change_password(
         raise HTTPException(status_code=500, detail="密码修改失败")
 
     await db.commit()
+    logger.info(f"用户 {current_user.id} 修改密码成功")
     return success_response(message="密码修改成功")
 
 
@@ -369,6 +379,7 @@ async def export_user_data(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"vitalis_report_{current_user.id}_{timestamp}.html"
 
+    logger.info(f"用户 {current_user.id} 导出数据")
     return HTMLResponse(
         content=html_content,
         status_code=200,

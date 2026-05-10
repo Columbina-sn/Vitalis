@@ -23,6 +23,9 @@ from schemas.admin import AdminStatsResponse, BatchInviteCodeRequest, BatchInvit
 from tasks import daily_summary_task, cleanup_soft_deleted_records, backup_database_task
 from utills.response import success_response
 from utills.ip_utils import get_client_ip
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -85,6 +88,8 @@ async def batch_generate_invite_codes(
         user_agent=request.headers.get("user-agent"),
         remark=f"批量生成 {req.count} 个邀请码，有效期 {req.expiry_days} 天"
     )
+
+    logger.info(f"管理员 {current_admin['phone']} 批量生成 {req.count} 个邀请码")
 
     # 3. 返回统一成功响应
     return success_response(
@@ -187,6 +192,7 @@ async def close_admin_login(
         remark="管理员关闭登录入口 (admin_login_enabled → false)"
     )
 
+    logger.warning(f"管理员 {current_admin['phone']} 关闭了管理员登录入口")
     return success_response(message="管理员登录入口已关闭", data={})
 
 
@@ -299,6 +305,7 @@ async def update_user(
         user_agent=request.headers.get("user-agent"),
         remark=f"修改用户 {user.phone} 的信息"
     )
+    logger.info(f"管理员 {current_admin['phone']} 编辑用户 {user_id}")
     return success_response(message="用户信息已更新")
 
 
@@ -329,6 +336,7 @@ async def delete_user(
         user_agent=request.headers.get("user-agent"),
         remark=f"软删除用户 {user.phone}，数据保留30天后将彻底清除"
     )
+    logger.info(f"管理员 {current_admin['phone']} 软删除用户 {user_id}")
     return success_response(message="用户已标记删除")
 
 
@@ -356,6 +364,7 @@ async def update_comment(
         user_agent=request.headers.get("user-agent"),
         remark=f"编辑评论 ID：{comment_id}"
     )
+    logger.info(f"管理员 {current_admin['phone']} 编辑评论 {comment_id}")
     return success_response(message="评论已更新")
 
 
@@ -383,6 +392,7 @@ async def delete_comment(
         user_agent=request.headers.get("user-agent"),
         remark=f"软删除评论 ID：{comment_id}"
     )
+    logger.info(f"管理员 {current_admin['phone']} 软删除评论 {comment_id}")
     return success_response(message="评论已标记删除")
 
 
@@ -410,6 +420,7 @@ async def update_invite_code(
         user_agent=request.headers.get("user-agent"),
         remark=f"编辑邀请码 ID：{invite_id}"
     )
+    logger.info(f"管理员 {current_admin['phone']} 编辑邀请码 {invite_id}")
     return success_response(message="邀请码已更新")
 
 
@@ -434,6 +445,7 @@ async def delete_invite_code(
         user_agent=request.headers.get("user-agent"),
         remark=f"删除邀请码 ID：{invite_id}"
     )
+    logger.info(f"管理员 {current_admin['phone']} 删除邀请码 {invite_id}")
     return success_response(message="邀请码已删除")
 
 
@@ -449,6 +461,7 @@ async def delete_admin_log(
     if not log:
         raise HTTPException(status_code=404, detail="日志记录不存在")
     await delete_admin_log_by_id(db, log_id)
+    logger.info(f"管理员 {current_admin['phone']} 删除日志 {log_id}")
     return success_response(message="日志已删除")
 
 
@@ -493,6 +506,7 @@ async def trigger_daily_summary(
         user_agent=request.headers.get("user-agent"),
         remark_prefix="管理员主动触发"
     )
+    logger.info(f"管理员 {current_admin['phone']} 手动触发每日摘要生成")
     return success_response(message="每日摘要生成任务已启动")
 
 
@@ -552,6 +566,7 @@ async def restore_user(
         user_agent=request.headers.get("user-agent"),
         remark=f"还原用户 {user.phone} 的数据"
     )
+    logger.info(f"管理员 {current_admin['phone']} 还原用户 {user_id}")
     return success_response(message="用户已还原")
 
 
@@ -574,6 +589,7 @@ async def restore_comment(
         user_agent=request.headers.get("user-agent"),
         remark=f"还原评论 ID：{comment_id}"
     )
+    logger.info(f"管理员 {current_admin['phone']} 还原评论 {comment_id}")
     return success_response(message="评论已还原")
 
 
@@ -619,6 +635,7 @@ async def trigger_cleanup(
         request_ip=get_client_ip(request),
         remark_prefix="管理员手动触发"
     )
+    logger.info(f"管理员 {current_admin['phone']} 手动触发数据清理")
     return success_response(message="数据清理任务已启动")
 
 
@@ -670,5 +687,5 @@ async def trigger_backup(
         user_agent=request.headers.get("user-agent"),
         remark_prefix="管理员手动触发"
     )
-
+    logger.info(f"管理员 {current_admin['phone']} 手动触发数据库备份")
     return success_response(message="数据库备份任务已启动并完成")

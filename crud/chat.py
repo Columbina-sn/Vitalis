@@ -11,6 +11,9 @@ from models import (
     UserStatusHistory, MemoryAnchor, MemorySnapshot, UserSchedule
 )
 from utills.psychological_harmony_index import calculate_phi
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 async def get_user_full_info(
@@ -172,6 +175,7 @@ async def create_schedule(
     )
     db.add(schedule)
     await db.flush()
+    logger.info(f"为用户 {user_id} 创建日程: {title}")
     return schedule
 
 
@@ -259,6 +263,7 @@ async def update_user_status(
     db.add(history)
 
     await db.flush()  # 同时刷新状态更新和历史插入
+    logger.info(f"用户 {user_id} 状态更新")
     return status
 
 
@@ -286,6 +291,7 @@ async def add_emotion_shift(
     )
     db.add(shift)
     await db.flush()
+    logger.info(f"记录用户 {user_id} 的情绪转折")
     return shift
 
 
@@ -317,6 +323,7 @@ async def add_conversation_history(
     )
     db.add(history)
     await db.flush()
+    logger.debug(f"用户 {user_id} 消息记录: role={role}")
     return history
 
 
@@ -411,6 +418,7 @@ async def update_schedule(
             setattr(schedule, field, value)
     schedule.updated_at = datetime.now()
     await db.flush()
+    logger.info(f"更新日程 {schedule_id}")
     return schedule
 
 
@@ -430,6 +438,7 @@ async def delete_schedule(db: AsyncSession, schedule_id: int) -> bool:
         return False
     await db.delete(schedule)
     await db.flush()
+    logger.info(f"删除日程 {schedule_id}")
     return True
 
 
@@ -476,3 +485,4 @@ async def auto_complete_due_schedules(db: AsyncSession, user_id: int) -> None:
 
     if tasks or deferred_schedules:
         await db.flush()
+        logger.info(f"用户 {user_id} 自动处理到期日程")

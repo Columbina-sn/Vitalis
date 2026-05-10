@@ -21,6 +21,9 @@ from utills.ip_utils import get_client_ip
 from utills.response import success_response
 from utills.security import verify_password, create_access_token, create_access_token_with_jti
 from models import AdminLog, LoginHistory
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -103,6 +106,7 @@ async def register(user_data: UserCreate, request: Request, db: AsyncSession = D
     await db.commit()
 
     token_data = Token(access_token=token)
+    logger.info(f"用户 {new_user.phone} 注册成功")
     return success_response(message="注册成功", data=token_data)
 
 
@@ -180,10 +184,10 @@ async def login(
                 login_time = datetime.now()
                 send_admin_login_alert(client_ip, login_time)
             else:
-                print(f"[邮件] 与上次管理员登录 IP 相同，跳过发送")
+                logger.info("与上次管理员登录 IP 相同，跳过发送管理员登录提醒")
         except Exception as e:
             # 邮件发送失败不应影响登录流程，仅记录日志
-            print(f"[邮件] 发送管理员登录提醒失败: {e}")
+            logger.error(f"发送管理员登录提醒失败: {e}", exc_info=True)
 
         # 记录待验证会话
         pending_admin_verifications[phone] = time.time() + PENDING_EXPIRE_SECONDS
@@ -275,6 +279,7 @@ async def login(
     return_dict = token_data.model_dump()
     return_dict["login_alert"] = login_alert
 
+    logger.info(f"用户 {user.phone} 登录成功")
     return success_response(message="登录成功", data=return_dict)
 
 
@@ -329,6 +334,7 @@ async def admin_second_verify(
         data={"sub": phone, "is_admin": True},
         expires_delta=timedelta(hours=24)
     )
+    logger.info("管理员二级验证成功，生成 token")
     return success_response(
         message="管理员验证通过",
         data={"access_token": access_token, "token_type": "bearer"}

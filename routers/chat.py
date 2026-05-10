@@ -29,14 +29,17 @@ from ai.empathyAI import build_messages as empathy_build_messages, analog_ai as 
 from ai.productivityAI import build_messages as productivity_build_messages, analog_ai as productivity_analog_ai
 from config.db_conf import get_db
 from utills.response import success_response
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["聊天"])
 
 
 def debug_print(obj):
     """调试打印：将对象中的字面 \n 转换为实际换行"""
-    text = str(obj)
-    print(text.replace('\\n', '\n'))
+    text = str(obj).replace('\\n', '\n')
+    logger.debug(text)
 
 
 @router.post("/conversation", summary="接受、处理、回复用户消息")
@@ -199,6 +202,7 @@ async def receive_user_message(
     )
     await db.commit()
 
+    logger.info(f"用户 {current_user.id} 对话处理完成")
     return success_response(message="回复用户成功", data={
         "reply": final_reply,
         "status_updates": status_changes,

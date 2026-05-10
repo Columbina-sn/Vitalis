@@ -3,6 +3,9 @@ from sqlalchemy import select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import SystemConfig, LoginHistory
+from utills.logging_conf import get_logger
+
+logger = get_logger(__name__)
 
 
 async def is_admin_login_enabled(db: AsyncSession) -> bool:
@@ -23,6 +26,7 @@ async def invalidate_previous_sessions(db: AsyncSession, user_id: int):
         .where(LoginHistory.user_id == user_id, LoginHistory.is_valid == True)
         .values(is_valid=False)
     )
+    logger.info(f"用户 {user_id} 的所有旧会话已失效")
 
 
 async def create_login_history(db: AsyncSession, user_id: int, ip: str, location: str, device_info: str, jti: str) -> LoginHistory:
@@ -37,4 +41,5 @@ async def create_login_history(db: AsyncSession, user_id: int, ip: str, location
     )
     db.add(record)
     await db.flush()   # 确保 id 被赋值，供后续查询使用
+    logger.info(f"用户 {user_id} 创建登录历史记录，IP: {ip}")
     return record
