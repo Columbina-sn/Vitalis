@@ -29,24 +29,37 @@ async def daily_summary_task(
 ):
     """
     定时任务 / 管理员手动触发的每日总结生成。
-    触发时间规则：
-        - 凌晨 0:00 ~ 4:59  → 统计「昨天」全天数据（00:00:00 ~ 24:00:00）
-        - 其他时间（5:00~23:59）→ 统计「今天」从 00:00:00 到当前时刻的数据
+    上线后逻辑：无论触发时间，始终统计「昨天」全天数据。
+    ──────────── 测试期逻辑 ────────────
+    # 测试时期触发时间规则：
+    #     - 凌晨 0:00 ~ 4:59  → 统计「昨天」全天数据（00:00:00 ~ 24:00:00）
+    #     - 其他时间（5:00~23:59）→ 统计「今天」从 00:00:00 到当前时刻的数据
+    # 等上线后，管理员手动触发的情况只有：定时任务失败，第二天发现未自动触发，手动触发总结昨日数据。
+    ─────────────────────────────────────────────
     """
     async with AsyncSessionLocal() as db:
         now = datetime.now(TZ)
-        hour = now.hour
-
-        if hour < 5:
-            target_date = now.date() - timedelta(days=1)
-            start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
-            end_time = start_time + timedelta(days=1)
-            date_desc = target_date.isoformat()
+        # ---------- 上线逻辑：固定统计昨天 ----------
+        today_4am = now.replace(hour=4, minute=0, second=0, microsecond=0)
+        if now >= today_4am:
+            end_time = today_4am
         else:
-            target_date = now.date()
-            start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
-            end_time = now
-            date_desc = target_date.isoformat()
+            end_time = today_4am - timedelta(days=1)
+        start_time = end_time - timedelta(days=1)  # 上一个 04:00
+        date_desc = start_time.strftime("%Y-%m-%d")  # 以起始日代表区间，如 2026-05-10
+
+        # ---- 原测试期逻辑（保留备用） ----
+        # hour = now.hour
+        # if hour < 5:
+        #     target_date = now.date() - timedelta(days=1)
+        #     start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
+        #     end_time = start_time + timedelta(days=1)
+        #     date_desc = target_date.isoformat()
+        # else:
+        #     target_date = now.date()
+        #     start_time = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ)
+        #     end_time = now
+        #     date_desc = target_date.isoformat()
 
         stmt = (
             select(ConversationHistory.user_id)
@@ -232,7 +245,7 @@ async def run_backup_loop():
             if now >= next_run:
                 next_run += timedelta(days=1)
             wait_seconds = (next_run - now).total_seconds()
-            logger.info(f"下次备份时间: {next_run}")  # 信息替换
+            logger.info(f"下次备份时间: {next_run}")
             await asyncio.sleep(wait_seconds)
 
             logger.info("开始执行备份...")

@@ -21,7 +21,7 @@ async def get_user_full_info(
 ) -> Optional[Dict[str, Any]]:
     """
     获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
-    长期记忆（近21天锚点按置信度取前15、近7天摘要最多3条、一年前后未完成日程最多10条）、
+    长期记忆（近21天锚点按置信度取前15、近7天摘要最多3条，同一天只保留最晚的一条）、一年前后未完成日程最多10条、
     最近5条已完成日程。
     """
     user = await db.get(User, user_id)
@@ -66,15 +66,23 @@ async def get_user_full_info(
     )
     anchors = anchors_result.scalars().all()
 
-    # 近7天的记忆快照，最多3条
+    # 近7天的记忆快照，同一天只保留最晚的一条，再取最多3条（按日期降序）
     days_ago = datetime.now() - timedelta(days=7)
     snapshots_result = await db.execute(
         select(MemorySnapshot)
         .where(MemorySnapshot.user_id == user_id, MemorySnapshot.created_at >= days_ago)
         .order_by(desc(MemorySnapshot.created_at))
-        .limit(3)
     )
-    snapshots = snapshots_result.scalars().all()
+    all_snapshots = snapshots_result.scalars().all()
+
+    # 去重：同一天只取最晚的一条
+    date_snapshots = {}
+    for snap in all_snapshots:
+        snap_date = snap.created_at.date()
+        if snap_date not in date_snapshots:
+            date_snapshots[snap_date] = snap
+    # 按日期降序排序，取最近3天
+    snapshots = sorted(date_snapshots.values(), key=lambda s: s.created_at, reverse=True)[:3]
 
     # 一年前后未完成的日程（最多10条，优先取最近事件）
     now = datetime.now()

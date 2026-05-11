@@ -5,6 +5,18 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 
+class AdminSecondVerifyRequest(BaseModel):
+    phone: str = Field(..., description="管理员手机号")
+    second_password: str = Field(..., description="二级密码")
+
+
+class AdminSecondVerifyResponseData(BaseModel):
+    """管理员二级验证通过后的返回数据"""
+    access_token: str = Field(..., description="管理员 JWT Token")
+    token_type: str = Field(default="bearer", description="Token 类型")
+    admin_redirect_url: str = Field(..., description="管理后台跳转地址（随机路径）")
+
+
 class AdminStatsResponse(BaseModel):
     total_users: int
     today_conversations: int

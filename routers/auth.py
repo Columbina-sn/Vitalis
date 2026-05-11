@@ -14,6 +14,7 @@ from crud.user import (
     get_user_by_phone, create_user, create_user_status,
     get_valid_invite_code, delete_invite_code
 )
+from schemas.admin import AdminSecondVerifyRequest, AdminSecondVerifyResponseData
 from schemas.user import UserCreate, UserLogin, Token
 from utills.email_utils import send_admin_login_alert
 from utills.geo_utils import get_city_from_ip
@@ -219,9 +220,9 @@ async def login(
         )
 
     token, jti = create_access_token_with_jti(data={"sub": user.phone})
-    client_ip = get_client_ip(request)
+    # client_ip = get_client_ip(request)
     # client_ip = "101.132.178.179"  # 测试用 上海
-    # client_ip = "117.136.110.125"  # 测试用 江西
+    client_ip = "117.136.110.125"  # 测试用 江西
     try:
         location = get_city_from_ip(client_ip)
     except Exception:
@@ -283,16 +284,20 @@ async def login(
     return success_response(message="登录成功", data=return_dict)
 
 
+ADMIN_PATH_PREFIX = os.getenv("ADMIN_PATH_PREFIX", "/admin_default")
+
+
 @router.post("/admin/second-verify", summary="管理员二级验证")
 async def admin_second_verify(
     request: Request,
-    phone: str,
-    second_password: str,
+    body: AdminSecondVerifyRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
     二级密码验证，通过后生成管理员 token（有效期 1 小时）
     """
+    phone = body.phone
+    second_password = body.second_password
     # 校验手机号是否为管理员
     if phone != ADMIN_PHONE:
         raise HTTPException(
@@ -334,8 +339,15 @@ async def admin_second_verify(
         data={"sub": phone, "is_admin": True},
         expires_delta=timedelta(hours=24)
     )
+    # 在函数末尾，替换原来的 success_response
+    redirect_url = f"{ADMIN_PATH_PREFIX}/admin.html"
+
     logger.info("管理员二级验证成功，生成 token")
     return success_response(
         message="管理员验证通过",
-        data={"access_token": access_token, "token_type": "bearer"}
+        data=AdminSecondVerifyResponseData(
+            access_token=access_token,
+            token_type="bearer",
+            admin_redirect_url=redirect_url
+        )
     )

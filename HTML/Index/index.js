@@ -337,13 +337,13 @@
             submitBtn.textContent = '验证中...';
 
             try {
-                const params = new URLSearchParams();
-                params.append('phone', adminPhone);
-                params.append('second_password', secondPwd);
-
-                const response = await fetch('/auth/admin/second-verify?' + params.toString(), {
+                const response = await fetch('/auth/admin/second-verify', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: adminPhone,
+                        second_password: secondPwd
+                    })
                 });
 
                 const result = await response.json();
@@ -356,9 +356,10 @@
                 if (token) {
                     localStorage.setItem('access_token', token);
                     window.showToast('✅ 管理员验证成功，进入后台', 2000);
+                    const redirectUrl = result.data?.admin_redirect_url || '/HTML/Admin/admin.html';
                     setTimeout(() => {
-                        window.location.href = '/HTML/Admin/admin.html';
-                    }, 1500);
+                        window.location.href = redirectUrl;
+                    }, 2000);
                     closeModal();
                 } else {
                     throw new Error('未获取到 token');

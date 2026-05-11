@@ -7,7 +7,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import uvicorn
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
+from config.db_conf import async_engine
 from tasks import run_daily_task_loop, run_cleanup_loop, run_backup_loop
 from utills.exception_handlers import register_exception_handlers
 from utills.logging_conf import setup_logging, get_logger  # 新增
@@ -36,11 +39,29 @@ async def lifespan(app: FastAPI):
         pass
     logger.info("后台任务已全部取消")
 
+    await async_engine.dispose()
+    logger.info("数据库连接池已释放")
+
 app = FastAPI(title="Vitalis AI 后端", version="0.2.0", lifespan=lifespan)
+
+
+# ---------- 拦截直接访问 /HTML/Admin 的请求 ----------
+@app.middleware("http")
+async def block_admin_direct_access(request: Request, call_next):
+    if request.url.path.startswith("/HTML/Admin"):
+        return Response(status_code=404)
+    response = await call_next(request)
+    return response
+
 
 app.mount("/HTML", StaticFiles(directory="HTML"), name="HTML")
 app.mount("/static_pic", StaticFiles(directory="static_pic"), name="static_pic")
 register_exception_handlers(app)
+
+# 环境变量读取随机前缀
+ADMIN_PATH_PREFIX = os.getenv("ADMIN_PATH_PREFIX", "/admin_default")
+# 将 Admin 目录通过随机路径暴露出去
+app.mount(ADMIN_PATH_PREFIX, StaticFiles(directory="HTML/Admin"), name="admin_static")
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
