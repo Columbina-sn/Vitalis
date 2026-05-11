@@ -62,6 +62,8 @@
             if (m === '&') return '&amp;'; // 将&替换为&amp;实体
             if (m === '<') return '&lt;';  // 将<替换为&lt;实体
             if (m === '>') return '&gt;';  // 将>替换为&gt;实体
+            if (m === '"') return '&quot;';
+            if (m === "'") return '&#39;';
             return m; // 其他匹配到的字符（理论上只有这三个）原样返回（实际不会执行到）
         });
     };

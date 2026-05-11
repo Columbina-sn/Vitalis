@@ -614,9 +614,9 @@
           widths: ['15%', '15%', '12%', '17%', '9%', '8%', '9%', '8%'],
           hasActions: true,
           renderRow: (item) => [
-              `<span class="phone-toggle" data-full="${escapeHtml(item.phone)}">${maskPhone(item.phone)}</span>`,
+              `<span class="phone-toggle" data-full="${escapeHtml(item.phone).replace(/"/g, '&quot;')}">${maskPhone(item.phone)}</span>`,
               escapeHtml(item.nickname || ''),
-              item.invite_code || '',
+              escapeHtml(item.invite_code || ''),
               formatDate(item.created_at),
               item.psychological_harmony_index,
               item.conversation_count,
@@ -633,7 +633,7 @@
         renderRow: (item) => [
           item.id,
           escapeHtml(item.content),
-          item.ip_address,
+          escapeHtml(item.ip_address),
           formatDateTime(item.created_at),
           item.replied ? '是' : '否',
           actionButtonsHtml()
@@ -661,8 +661,8 @@
           widths: ['12%', '22%', '43%', '15%', '8%'],
           hasActions: true,
           renderRow: (item) => [
-              `<span class="phone-toggle" data-full="${escapeHtml(item.admin_phone)}">${maskPhone(item.admin_phone)}</span>`,
-              item.action_type,
+              `<span class="phone-toggle" data-full="${escapeHtml(item.admin_phone).replace(/"/g, '&quot;')}">${maskPhone(item.admin_phone)}</span>`,
+              escapeHtml(item.action_type),
               escapeHtml(item.remark || ''),
               formatDateTime(item.created_at),
               `<span class="action-icons"><i class="fas fa-trash-alt action-icon" title="删除"></i></span>`
@@ -673,9 +673,9 @@
           widths: ['15%', '15%', '12%', '17%', '9%', '8%', '9%', '8%'],
           hasActions: true,
           renderRow: (item) => [
-              `<span class="phone-toggle" data-full="${escapeHtml(item.phone)}">${maskPhone(item.phone)}</span>`,
+              `<span class="phone-toggle" data-full="${escapeHtml(item.phone).replace(/"/g, '&quot;')}">${maskPhone(item.phone)}</span>`,
               escapeHtml(item.nickname || ''),
-              item.invite_code || '',
+              escapeHtml(item.invite_code || ''),
               formatDate(item.created_at),
               item.psychological_harmony_index,
               item.conversation_count,
@@ -692,7 +692,7 @@
           renderRow: (item) => [
               item.id,
               escapeHtml(item.content),
-              item.ip_address,
+              escapeHtml(item.ip_address),
               formatDateTime(item.created_at),
               item.replied ? '是' : '否',
               `<span class="action-icons"><i class="fas fa-undo action-icon" title="还原"></i></span>` // 仅还原
