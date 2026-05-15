@@ -155,8 +155,8 @@ async def login(
         )
 
         # 检查 24 小时内同一 IP 的一级验证尝试次数
-        attempts = await count_admin_stage1_attempts_last_24h(db, client_ip, phone)
-        if attempts > 3:  # 第4次及以上被拒绝
+        attempts = await count_admin_stage1_attempts_last_24h(db, phone)
+        if attempts > 5:  # 第6次及以上被拒绝
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="今日管理员一级验证尝试次数已达上限，请24小时后再试"

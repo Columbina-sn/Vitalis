@@ -48,19 +48,14 @@ async def create_admin_log(
 
 async def count_admin_stage1_attempts_last_24h(
         db: AsyncSession,
-        ip_address: str,
         admin_phone: str
 ) -> int:
-    since = datetime.now() - timedelta(hours=24)
-
     # 1. 查找最近一次二级成功的时间
     last_success_stmt = (
         select(AdminLog.created_at)
         .where(
-            AdminLog.request_ip == ip_address,
             AdminLog.admin_phone == admin_phone,
-            AdminLog.action_type == "ADMIN_LOGIN_SUCCESS",
-            AdminLog.created_at >= since
+            AdminLog.action_type == "ADMIN_LOGIN_SUCCESS"
         )
         .order_by(AdminLog.created_at.desc())
         .limit(1)
@@ -72,13 +67,13 @@ async def count_admin_stage1_attempts_last_24h(
     if last_success_time:
         effective_since = last_success_time
     else:
-        effective_since = since
+        effective_since = datetime.now() - timedelta(days=365)  # 从未成功过，统计很久以前
 
     stmt = (
         select(func.count())
         .select_from(AdminLog)
         .where(
-            AdminLog.request_ip == ip_address,
+            AdminLog.admin_phone == admin_phone,
             AdminLog.action_type == "ADMIN_LOGIN_STAGE1",
             AdminLog.created_at >= effective_since
         )
