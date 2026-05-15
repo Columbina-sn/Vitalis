@@ -220,9 +220,9 @@ async def login(
         )
 
     token, jti = create_access_token_with_jti(data={"sub": user.phone})
-    # client_ip = get_client_ip(request)
+    client_ip = get_client_ip(request)
     # client_ip = "101.132.178.179"  # 测试用 上海
-    client_ip = "117.136.110.125"  # 测试用 江西
+    # client_ip = "117.136.110.125"  # 测试用 江西
     try:
         location = get_city_from_ip(client_ip)
     except Exception:
@@ -334,10 +334,10 @@ async def admin_second_verify(
         remark="管理员二级验证成功，登录后台"
     )
 
-    # 生成管理员 token，有效期 1 小时（改成了 24 小时方便测试）
+    # 生成管理员 token，有效期 1 小时（改成 24 小时方便测试）
     access_token = create_access_token(
         data={"sub": phone, "is_admin": True},
-        expires_delta=timedelta(hours=24)
+        expires_delta=timedelta(hours=1)
     )
     # 在函数末尾，替换原来的 success_response
     redirect_url = f"{ADMIN_PATH_PREFIX}/admin.html"

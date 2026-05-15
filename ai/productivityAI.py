@@ -157,7 +157,7 @@ def build_messages(
   "new_anchors": [],
   "should_create_schedule": false,
   "new_schedules": [
-    {{"schedule_type":"short_task","title":"示例","description":"","scheduled_time":"2026-05-05T10:00"}}
+    {{"schedule_type":"short_task(或long_goal/countdown/anniversary/birthday)","title":"示例","description":"","scheduled_time":"2026-05-05T10:00"}}
   ],
   "schedule_edits": [
     {{"title":"旧标题","new_title":"新标题","new_completed":true}}

@@ -12,7 +12,7 @@ from typing import Any
 
 # 开发模式：返回详细错误信息
 # 生产模式：返回简化错误信息
-DEBUG_MODE = True  # 教学项目保持开启，上线后应关闭。True表示开发模式，会返回详细的错误信息；False表示生产模式，只返回简化的错误信息
+DEBUG_MODE = False  # 教学项目保持开启，上线后应关闭。True表示开发模式，会返回详细的错误信息；False表示生产模式，只返回简化的错误信息
 
 
 async def http_exception_handler(request: Request, exc: HTTPException):
