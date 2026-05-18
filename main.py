@@ -1,4 +1,3 @@
-import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -11,7 +10,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from config.db_conf import async_engine
-from tasks import run_daily_task_loop, run_cleanup_loop, run_backup_loop
 from utills.exception_handlers import register_exception_handlers
 from utills.logging_conf import setup_logging, get_logger  # 新增
 
@@ -24,20 +22,21 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task_summary = asyncio.create_task(run_daily_task_loop())
-    task_cleanup = asyncio.create_task(run_cleanup_loop())
-    task_backup = asyncio.create_task(run_backup_loop())
-    logger.info("后台任务已启动：每日摘要 + 软删除清理 + 数据库备份")
+    # task_summary = asyncio.create_task(run_daily_task_loop())
+    # task_cleanup = asyncio.create_task(run_cleanup_loop())
+    # task_backup = asyncio.create_task(run_backup_loop())
+    # logger.info("后台任务已启动：每日摘要 + 软删除清理 + 数据库备份")
+    logger.info("FastAPI 应用启动，定时任务由 crontab 管理")
 
     yield
 
-    for t in (task_summary, task_cleanup, task_backup):
-        t.cancel()
-    try:
-        await asyncio.gather(task_summary, task_cleanup, task_backup, return_exceptions=True)
-    except Exception:
-        pass
-    logger.info("后台任务已全部取消")
+    # for t in (task_summary, task_cleanup, task_backup):
+    #     t.cancel()
+    # try:
+    #     await asyncio.gather(task_summary, task_cleanup, task_backup, return_exceptions=True)
+    # except Exception:
+    #     pass
+    # logger.info("后台任务已全部取消")
 
     await async_engine.dispose()
     logger.info("数据库连接池已释放")
