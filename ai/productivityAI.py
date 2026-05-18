@@ -111,7 +111,7 @@ def build_messages(
           日常闲聊内容只要正常不悲观伤感，缓慢增加2-5点，尤其用户只要短期内并不表现负面情绪，不要让数值长期停在60以下；
           若未涉及则保持原值。
    - 不要输出 PHI，PHI由后台结合五维数值计算。
-   - 五维的理想点位为"physical": 80, "emotional": 75, "relation": 80, "worth": 85, "meaning": 75。过高过低都不好。
+   - 五维的理想点位为"physical": 80, "emotional": 75, "relation": 80, "worth": 85, "meaning": 75。**过高过低都是不好的意思**。
 
 2. **情绪转折记录** (`should_add_emotion_shifts`, `emotion_shifts_summary`)
    - 如果本轮对话包含明显的值得记录的情绪起伏，用≤50字概括，并设 should_add_emotion_shifts=true。
