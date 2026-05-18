@@ -1280,7 +1280,7 @@
         isSending = true;
         sendBtn.disabled = true;
         sendBtn.style.opacity = '0.6';
-        chatInput.disabled = true;
+        // chatInput.disabled = true;
 
         let typingStarted = false;
 
@@ -1329,7 +1329,7 @@
                 isSending = false;
                 sendBtn.disabled = false;
                 sendBtn.style.opacity = '1';
-                chatInput.disabled = false;
+                // chatInput.disabled = false;
                 chatInput.focus();
 
                 if (response.status_updates) {
@@ -1356,7 +1356,7 @@
                 isSending = false;
                 sendBtn.disabled = false;
                 sendBtn.style.opacity = '1';
-                chatInput.disabled = false;
+                // chatInput.disabled = false;
                 chatInput.focus();
             }
         }
