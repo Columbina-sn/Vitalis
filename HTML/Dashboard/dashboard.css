@@ -479,12 +479,24 @@ body {
 .input-area {
   flex-shrink: 0; /* 不缩小，保持原始高度 */
   display: flex; /* 弹性布局 */
+  flex-wrap: wrap;              /* 允许子元素换行 */
   align-items: center;          /* 垂直居中，避免按钮被拉伸 */
-  padding: 14px 20px 20px 16px; /* 内边距：上14 右20 下20 左16 */
-  gap: 12px; /* 子元素间距 */
+  padding: 14px 20px 4px 16px; /* 内边距：上14 右20 下20 左16 */
+  gap: 4px; /* 子元素间距 */
   background: rgba(252, 248, 230, 0.9); /* 半透明白色背景 */
   backdrop-filter: blur(4px); /* 背景模糊 */
   border-top: 2px solid #f7e5c0; /* 顶部边框 */
+}
+
+/* 输入区提示小字 */
+.input-note {
+  width: 100%;                  /* 强制换行，独占一行 */
+  font-size: 0.7rem;
+  color: #cabaa2;
+  text-align: right;
+  letter-spacing: 0.3px;
+  user-select: none;
+  pointer-events: none;         /* 避免干扰点击输入框或按钮 */
 }
 
 .input-area textarea {
@@ -493,6 +505,7 @@ body {
   border: 1px solid #f0dcb8;
   border-radius: 48px 2px 2px 48px; /* 左侧大圆角，右侧小圆角，形成独特风格 */
   padding: 4px 4px 4px 32px; /* 左侧留出较大空间，模拟信封开口效果 */
+  margin-right: 4px;
   font-size: 0.95rem;
   outline: none;
   transition: 0.2s;
