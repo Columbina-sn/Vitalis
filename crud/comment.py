@@ -10,38 +10,97 @@ from utills.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
+# async def get_comments_cursor_paginated(
+#     db: AsyncSession,
+#     limit: int = 10,
+#     cursor_is_long: Optional[bool] = None,
+#     cursor_created_at: Optional[datetime] = None,
+#     cursor_id: Optional[int] = None,
+# ) -> Tuple[List[Comment], Dict[str, Any]]:
+#     """
+#     基于游标的分页查询评论列表。
+#     排序规则：is_long DESC, created_at DESC, id DESC
+#     返回：(评论列表, next_cursor 字典或 None)
+#     """
+#     # 构建基础查询并排序
+#     stmt = select(Comment).where(Comment.is_deleted == False)  # 新增这行
+#     stmt = stmt.order_by(
+#         (func.length(Comment.content) > 50).desc(),
+#         Comment.created_at.desc(),
+#         Comment.id.desc()
+#     )
+#
+#     # 如果有游标，添加 WHERE 条件： (is_long, created_at, id) < (cursor...)
+#     if cursor_is_long is not None and cursor_created_at is not None and cursor_id is not None:
+#         # 注意：SQLAlchemy 的 tuple_ 比较需要三个字段一一对应
+#         stmt = stmt.where(
+#             tuple_(
+#                 (func.length(Comment.content) > 50),
+#                 Comment.created_at,
+#                 Comment.id
+#             ) < (cursor_is_long, cursor_created_at, cursor_id)
+#         )
+#
+#     # 多取一条用于判断 has_more
+#     stmt = stmt.limit(limit + 1)
+#     result = await db.execute(stmt)
+#     items = result.scalars().all()
+#
+#     has_more = len(items) > limit
+#     if has_more:
+#         items = items[:limit]
+#
+#     # 构建下一页游标（取最后一条记录的信息）
+#     next_cursor = None
+#     if has_more and items:
+#         last = items[-1]
+#         next_cursor = {
+#             "is_long": len(last.content) > 50,
+#             "created_at": last.created_at.isoformat(),
+#             "id": last.id
+#         }
+#
+#     return items, next_cursor
+
+
 async def get_comments_cursor_paginated(
-    db: AsyncSession,
-    limit: int = 10,
-    cursor_is_long: Optional[bool] = None,
-    cursor_created_at: Optional[datetime] = None,
-    cursor_id: Optional[int] = None,
+        db: AsyncSession,
+        limit: int = 10,
+        cursor_is_long: Optional[bool] = None,
+        cursor_created_at: Optional[datetime] = None,
+        cursor_id: Optional[int] = None,
 ) -> Tuple[List[Comment], Dict[str, Any]]:
-    """
-    基于游标的分页查询评论列表。
-    排序规则：is_long DESC, created_at DESC, id DESC
-    返回：(评论列表, next_cursor 字典或 None)
-    """
-    # 构建基础查询并排序
-    stmt = select(Comment).where(Comment.is_deleted == False)  # 新增这行
-    stmt = stmt.order_by(
+    # 1. 先看是否需要返回置顶评论（仅第一次 & 没有游标时）
+    include_top = (cursor_is_long is None and cursor_created_at is None and cursor_id is None)
+
+    top_comment = None
+    if include_top:
+        # 查询 id=1 且未删除的评论
+        top_result = await db.execute(
+            select(Comment).where(Comment.id == 1, Comment.is_deleted == False)
+        )
+        top_comment = top_result.scalar_one_or_none()
+
+    # 2. 构建普通评论的查询（排除 id=1）
+    stmt = select(Comment).where(
+        Comment.is_deleted == False,
+        Comment.id != 1  # 关键：不让 id=1 参与分页
+    ).order_by(
         (func.length(Comment.content) > 50).desc(),
         Comment.created_at.desc(),
         Comment.id.desc()
     )
 
-    # 如果有游标，添加 WHERE 条件： (is_long, created_at, id) < (cursor...)
+    # 游标条件（仍然用旧的三字段，完全不变）
     if cursor_is_long is not None and cursor_created_at is not None and cursor_id is not None:
-        # 注意：SQLAlchemy 的 tuple_ 比较需要三个字段一一对应
         stmt = stmt.where(
             tuple_(
-                (func.length(Comment.content) > 50),
+                (func.length(Comment.content) > 100),
                 Comment.created_at,
                 Comment.id
             ) < (cursor_is_long, cursor_created_at, cursor_id)
         )
 
-    # 多取一条用于判断 has_more
     stmt = stmt.limit(limit + 1)
     result = await db.execute(stmt)
     items = result.scalars().all()
@@ -50,17 +109,23 @@ async def get_comments_cursor_paginated(
     if has_more:
         items = items[:limit]
 
-    # 构建下一页游标（取最后一条记录的信息）
+    # 构造 next_cursor（依然基于普通评论的最后一条）
     next_cursor = None
     if has_more and items:
         last = items[-1]
         next_cursor = {
-            "is_long": len(last.content) > 50,
+            "is_long": len(last.content) > 100,
             "created_at": last.created_at.isoformat(),
             "id": last.id
         }
 
-    return items, next_cursor
+    # 3. 最终列表：如果有置顶评论且是第一页，插到最前面
+    final_items = []
+    if include_top and top_comment:
+        final_items.append(top_comment)
+    final_items.extend(items)
+
+    return final_items, next_cursor
 
 
 # async def get_comments_list(db: AsyncSession, skip: int = 0, limit: int = 10):

@@ -84,5 +84,10 @@ async def read_index():
         content = f.read()
     return HTMLResponse(content)
 
+
+@app.get("/health", summary="健康检查")
+async def health_check():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     uvicorn.run("main:app", port=8080, reload=False, log_config=None)
