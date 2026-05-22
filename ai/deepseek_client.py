@@ -13,13 +13,39 @@ API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 API_BASE = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
-MAX_JSON_FIX_RETRIES = 2      # JSON 解析失败时最多自动修正次数
-TEMPERATURE_DEFAULT = 0.3     # 工作/总结 AI 用
-TEMPERATURE_EMPATHY = 0.55     # 情感 AI 用（需要一定发散度）
+MAX_JSON_FIX_RETRIES = 2  # JSON 解析失败时最多自动修正次数
+TEMPERATURE_DEFAULT = 0.3  # 工作/总结 AI 用
+TEMPERATURE_EMPATHY = 0.55  # 情感 AI 用（需要一定发散度）
 MAX_TOKENS = 2000
 
 if not API_KEY:
     raise RuntimeError("缺少环境变量 DEEPSEEK_API_KEY，无法初始化 DeepSeek 客户端")
+
+# ---------- 模块级复用 httpx 客户端 ----------
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """获取或创建复用的 AsyncClient（连接池复用）"""
+    global _client
+    if _client is None or (_client.is_closed if hasattr(_client, 'is_closed') else False):
+        # 创建时设置连接池限制，超时在每次请求时单独传递
+        _client = httpx.AsyncClient(
+            timeout=None,  # 不设默认超时，由每次 post 指定
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10)
+        )
+        logger.debug("创建新的 httpx AsyncClient 连接池")
+    return _client
+
+
+async def close_deepseek_client():
+    """优雅关闭 DeepSeek 客户端的连接池"""
+    global _client
+    if _client is not None:
+        if hasattr(_client, 'is_closed') and not _client.is_closed:
+            await _client.aclose()
+            logger.info("DeepSeek httpx 客户端已关闭")
+        _client = None
 
 
 # ---------- 工具 ----------
@@ -55,8 +81,8 @@ def extract_json_from_text(text: str) -> dict:
 async def _call_api(messages: list[dict[str, str]],
                     temperature: float,
                     max_tokens: int = MAX_TOKENS,
-                    timeout: float = 60.0) -> httpx.Response:
-    """底层 API 调用"""
+                    timeout: float = 120.0) -> httpx.Response:
+    """底层 API 调用，使用复用客户端 + per-request 超时"""
     url = f"{API_BASE.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {API_KEY}",
@@ -69,8 +95,8 @@ async def _call_api(messages: list[dict[str, str]],
         "max_tokens": max_tokens,
         "stream": False
     }
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        return await client.post(url, headers=headers, json=payload)
+    client = _get_client()
+    return await client.post(url, headers=headers, json=payload, timeout=timeout)
 
 
 # ---------- 新版核心：标准 messages 列表，JSON 解析 ----------
@@ -97,7 +123,7 @@ async def deepseek_chat_messages(
             return extract_json_from_text(content)
         except ValueError as e:
             if attempt < MAX_JSON_FIX_RETRIES and retry_on_json_fail:
-                logger.warning(f"JSON解析失败，第{attempt+1}次重试，错误: {e}")
+                logger.warning(f"JSON解析失败，第{attempt + 1}次重试，错误: {e}")
                 # 追加修正消息
                 msgs.append({"role": "assistant", "content": content})
                 msgs.append({"role": "user", "content":

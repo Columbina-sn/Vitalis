@@ -11,9 +11,10 @@ from starlette.responses import Response
 
 from config.db_conf import async_engine
 from utills.exception_handlers import register_exception_handlers
-from utills.logging_conf import setup_logging, get_logger  # 新增
+from utills.logging_conf import setup_logging, get_logger
 
 from routers import auth, comment, user, chat, admin
+from ai.deepseek_client import close_deepseek_client   # 新增导入
 
 # ---------- 初始化日志（必须在 FastAPI 之前） ----------
 setup_logging()
@@ -40,6 +41,13 @@ async def lifespan(app: FastAPI):
 
     await async_engine.dispose()
     logger.info("数据库连接池已释放")
+
+    # 关闭 DeepSeek 客户端的 httpx 连接池
+    try:
+        await close_deepseek_client()
+    except Exception as e:
+        logger.warning(f"关闭 DeepSeek 客户端时出错: {e}")
+
 
 app = FastAPI(title="Vitalis AI 后端", version="0.2.0", lifespan=lifespan)
 
