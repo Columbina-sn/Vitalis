@@ -10,6 +10,38 @@
   z-index: -1;            /* 置于所有正常内容的下方 */
 }
 
+/* 底部 */
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: #b8a07c;
+  z-index: 999;
+  background: rgba(250, 240, 220, 0.2);
+  backdrop-filter: blur(8px);
+  padding: 8px 0;
+  pointer-events: auto;
+  border-top: 1px solid rgba(240, 220, 180, 0.1);
+  font-weight: 450;
+  letter-spacing: 0.5px;
+  transition: background 0.2s;
+  cursor: default;
+}
+
+footer a {
+  color: #c9905c;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+footer a:hover {
+  color: #b87a48;
+  text-decoration: underline;
+}
+
 /* ============================================================
    2. 悬浮提示卡片（右下角 Toast 通知）
    ============================================================ */
@@ -358,7 +390,7 @@
   gap: 60px;                             /* 两个卡片之间的间距（如果同时显示） */
   z-index: 20;                           /* 较高层级，位于评论卡片之上 */
   transition: opacity 0.3s ease;         /* 透明度变化平滑过渡（用于隐藏/显示） */
-  border-radius: 36px;                   /* 圆角，与内部卡片风格一致 */
+  border-radius: 36px 36px 0px 0px;   /* 圆角，与内部卡片风格一致 */
 }
 
 .auth-card {
