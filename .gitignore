@@ -5,4 +5,7 @@ __pycache__/
 db_backups/
 logs/
 Vitalis项目总览.md
-static_pic/avatar/.venv/
+static_pic/avatar/
+.venv/
+CLAUDE.md
+主动问候功能_计划.md

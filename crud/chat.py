@@ -3,7 +3,7 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 
-from sqlalchemy import select, desc, and_, or_
+from sqlalchemy import select, desc, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import (
@@ -115,6 +115,18 @@ async def get_user_full_info(
     )
     recent_completed_schedules = completed_result.scalars().all()
 
+    # 今天是否有过对话
+    today = datetime.now().date()
+    today_conv = await db.execute(
+        select(ConversationHistory.id)
+        .where(
+            ConversationHistory.user_id == user_id,
+            func.date(ConversationHistory.created_at) == today
+        )
+        .limit(1)
+    )
+    has_today_conversation = today_conv.scalar_one_or_none() is not None
+
     return {
         "status": status,
         "emotion_shifts": emotion_shifts,
@@ -122,7 +134,8 @@ async def get_user_full_info(
         "anchors": anchors,
         "snapshots": snapshots,
         "upcoming_schedules": upcoming_schedules,
-        "recent_completed_schedules": recent_completed_schedules
+        "recent_completed_schedules": recent_completed_schedules,
+        "has_today_conversation": has_today_conversation
     }
 
 

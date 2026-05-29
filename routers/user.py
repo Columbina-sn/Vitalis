@@ -1,10 +1,11 @@
 # routers/user.py
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import HTMLResponse
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_conf import get_db
@@ -12,7 +13,7 @@ from core.deps import get_current_user
 from crud.user import update_user_nickname, update_user_avatar, soft_delete_user_account, get_user_status_by_user_id, \
     update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
     get_user_schedules, update_user_theme_mode
-from models import User
+from models import User, ConversationHistory
 from schemas.user import (
     UserBaseInfoResponse,
     UserInfoResponse,
@@ -46,12 +47,29 @@ os.makedirs(AVATAR_UPLOAD_DIR, exist_ok=True)
 @router.get("/base-info", summary="获取基本信息（是否新用户，头像URL）")
 async def get_base_info(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """获取用户基本信息（是否看过新手引导、头像URL、主题模式）"""
+    """获取用户基本信息（是否看过新手引导、头像URL、主题模式、是否需要问候）"""
+    # 检查是否需要开始新对话（最后一条对话记录距今 > 1小时 或 无记录）
+    last_conv = await db.execute(
+        select(ConversationHistory.created_at)
+        .where(ConversationHistory.user_id == current_user.id)
+        .order_by(desc(ConversationHistory.created_at))
+        .limit(1)
+    )
+    last_time = last_conv.scalar_one_or_none()
+
+    should_greet = False
+    if last_time is None:
+        should_greet = True
+    elif (datetime.now() - last_time) > timedelta(hours=1):
+        should_greet = True
+
     data = UserBaseInfoResponse(
         has_seen_intro=current_user.has_seen_intro,
         avatar=current_user.avatar or DEFAULT_AVATAR_URL,
-        theme_mode=current_user.theme_mode if current_user.theme_mode is not None else 2
+        theme_mode=current_user.theme_mode if current_user.theme_mode is not None else 2,
+        should_greet=should_greet
     )
     return success_response(message="获取用户基本信息成功", data=data)
 

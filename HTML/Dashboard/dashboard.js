@@ -169,6 +169,7 @@
     let userStatus = { physical: 50, emotional: 50, relation: 50, worth: 50, meaning: 50, phi: 50 };
     let allSchedules = { uncompleted: [], completed: [] };
     let isDashboardReady = false;
+    let shouldGreet = false;
 
     // --- 辅助函数（缓存管理）---
     function getUserBaseCache() {
@@ -179,8 +180,8 @@
         return null;
     }
 
-    function setUserBaseCache(avatar, hasSeenIntro) {
-        localStorage.setItem('user_base_info', JSON.stringify({ avatar, has_seen_intro: hasSeenIntro }));
+    function setUserBaseCache(avatar, hasSeenIntro, themeMode) {
+        localStorage.setItem('user_base_info', JSON.stringify({ avatar, has_seen_intro: hasSeenIntro, theme_mode: themeMode }));
     }
 
     // ================================================================
@@ -190,27 +191,20 @@
         if (!forceRefresh) {
             const cached = getUserBaseCache();
             if (cached && cached.avatar && typeof cached.has_seen_intro !== 'undefined') {
-                // 使用缓存的主题模式，但也要应用主题
                 const themeMode = cached.theme_mode != null ? cached.theme_mode : 2;
                 applyTheme(themeMode);
+                // 缓存模式下 shouldGreet 默认为 false（需要实际请求才能获取准确值）
+                shouldGreet = false;
                 return cached;
             }
         }
         try {
             const data = await window.http({ method: 'GET', url: '/user/base-info', needAuth: true });
             if (data) {
-                setUserBaseCache(data.avatar, data.has_seen_intro);
-                // 存储 theme_mode 到缓存和本地
                 const theme = data.theme_mode != null ? data.theme_mode : 2;
-                localStorage.setItem('user_theme_mode', theme); // 备用
-                // 更新缓存对象（需修改 setUserBaseCache 支持 theme_mode）
-                // 简便做法：扩展 cache 对象
-                const cached = getUserBaseCache();
-                if (cached) {
-                    cached.theme_mode = theme;
-                    localStorage.setItem('user_base_info', JSON.stringify(cached));
-                }
+                setUserBaseCache(data.avatar, data.has_seen_intro, theme);
                 applyTheme(theme);
+                shouldGreet = data.should_greet || false;
                 return { avatar: data.avatar, has_seen_intro: data.has_seen_intro, theme_mode: theme };
             }
         } catch (err) {
@@ -234,7 +228,7 @@
         const cached = getUserBaseCache();
         if (cached) {
             cached.has_seen_intro = true;
-            setUserBaseCache(cached.avatar, true);
+            setUserBaseCache(cached.avatar, true, cached.theme_mode);
         }
     }
 
@@ -261,7 +255,7 @@
             const cached = getUserBaseCache();
             if (cached) {
                 cached.avatar = data.avatar_url;
-                setUserBaseCache(cached.avatar, cached.has_seen_intro);
+                setUserBaseCache(cached.avatar, cached.has_seen_intro, cached.theme_mode);
             }
             return data.avatar_url;
         }
@@ -775,7 +769,7 @@
             const cached = getUserBaseCache();
             if (cached) {
                 cached.theme_mode = mode;
-                localStorage.setItem('user_base_info', JSON.stringify(cached));
+                setUserBaseCache(cached.avatar, cached.has_seen_intro, mode);
             }
             window.showToast('主题已更新', 1500);
         } catch (err) {
@@ -1008,6 +1002,21 @@
         "好消息是，我还没死机；坏消息是，我还在措辞。"
     ];
 
+    const greetingThinkingMessages = [
+        "正在推开树屋的门…",
+        "看看今天是什么天气，给你挑一句合适的问候。",
+        "小元揉了揉眼睛，想用最好的状态迎接你。",
+        "等一下哦，让我翻翻之前和你聊过什么…",
+        "整理一下今早的露水和阳光，顺便想句开场白。",
+        "听见门开的声音了——等我跑过来！",
+        "正在准备一句不像是「自动回复」的问候…",
+        "小元翻开日记本，回忆了一下上次和你聊到哪儿了。",
+        "轻手轻脚地点亮树屋的灯——欢迎回来。",
+        "把窗户推开，让元气岛的风吹进来——顺便想和你说的第一句话。",
+        "小元刚睡醒，脑袋还有点懵，但看到你回来就清醒了。",
+        "正在从记忆里捞出关于你的碎片，拼成一句暖暖的招呼。"
+    ];
+
     const thinkingTutorialMessages = [
         "找不到换昵称的按钮？想换新名字可以直接和小元说哟。",
         "点击右侧五维数值可以查看近期数值历史哦，还记得昨天的你抱有何样的情绪嘛。",
@@ -1037,13 +1046,18 @@
         return arr[Math.floor(Math.random() * arr.length)];
     }
 
-    function createRotatingThinkingMessage() {
+    function createRotatingThinkingMessage(mode = 'chat') {
         const tempDiv = document.createElement('div');
         tempDiv.className = 'message left';
 
+        const isGreeting = mode === 'greeting';
+        const stateMessages = isGreeting ? greetingThinkingMessages : thinkingStateMessages;
+        const stateEmoji = isGreeting ? '🌿' : '🤔';
+        const initialState = isGreeting ? '小元正在迎接你…' : '思考中...';
+
         const stateLine = document.createElement('div');
         stateLine.className = 'thinking-state';
-        stateLine.textContent = '🤔 思考中...';
+        stateLine.textContent = `${stateEmoji} ${initialState}`;
         tempDiv.appendChild(stateLine);
 
         const tutorialLine = document.createElement('div');
@@ -1055,7 +1069,7 @@
         let tutorialTimer = null;
 
         function updateState() {
-            stateLine.textContent = '🤔 ' + getRandomItem(thinkingStateMessages);
+            stateLine.textContent = stateEmoji + ' ' + getRandomItem(stateMessages);
         }
         function updateTutorial() {
             tutorialLine.textContent = '💡 ' + getRandomItem(thinkingTutorialMessages);
@@ -1382,7 +1396,7 @@
     async function loadMoreHistory(reset = false) {
         if (historyIsLoading) return;
         if (!reset && !historyHasMore) {
-            if (!topWelcomeAdded) { addTopWelcomeMessages(); topWelcomeAdded = true; }
+            if (!topWelcomeAdded && shouldGreet) { addTopWelcomeMessages(); topWelcomeAdded = true; }
             return;
         }
         if (reset) {
@@ -1415,9 +1429,13 @@
                 const sorted = [...list].reverse();
                 if (reset) {
                     renderMessagesWithDividers(sorted, true, hasMore);
-                    addBottomWelcomeMessages();
-                    bottomWelcomeAdded = true;
+                    if (shouldGreet) {
+                        addBottomWelcomeMessages();
+                        bottomWelcomeAdded = true;
+                    }
                     if (sorted.length > 0) earliestMessageId = sorted[0].id;
+                    // 初始加载后滚动到底部
+                    messageContainer.scrollTop = messageContainer.scrollHeight;
                 } else {
                     const oldScrollHeight = messageContainer.scrollHeight;
                     renderMessagesWithDividers(sorted, false);
@@ -1425,12 +1443,12 @@
                     messageContainer.scrollTop = newScrollHeight - oldScrollHeight;
                     if (sorted.length > 0) earliestMessageId = sorted[0].id;
                 }
-                if (!hasMore && !topWelcomeAdded) {
+                if (!hasMore && !topWelcomeAdded && shouldGreet) {
                     addTopWelcomeMessages();
                     topWelcomeAdded = true;
                 }
             } else {
-                if (reset) {
+                if (reset && shouldGreet) {
                     addTopWelcomeMessages();
                     topWelcomeAdded = true;
                     addBottomWelcomeMessages();
@@ -1443,6 +1461,69 @@
             window.showToast('加载对话记录失败', 2000);
         } finally {
             historyIsLoading = false;
+        }
+    }
+
+    async function sendGreetingMessage() {
+        isSending = true;
+        sendBtn.disabled = true;
+        sendBtn.style.opacity = '0.6';
+
+        const { element: thinkingMsg, startRotation, stopRotation } = createRotatingThinkingMessage('greeting');
+        messageContainer.appendChild(thinkingMsg);
+        startRotation();
+
+        try {
+            const response = await window.http({
+                method: 'POST',
+                url: '/chat/conversation',
+                data: { message: '' },
+                needAuth: true
+            });
+
+            if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
+            stopRotation();
+
+            const aiReply = response.reply || '欢迎回来~';
+            const aiReplyTime = new Date();
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'message left';
+            const contentEl = document.createElement('div');
+            contentEl.className = 'message-content';
+            msgEl.appendChild(contentEl);
+            msgEl.dataset.timestamp = aiReplyTime.toISOString();
+
+            const fragment = document.createDocumentFragment();
+            let prevTime = lastRenderedMessageTime;
+            if (prevTime) {
+                if (!isSameDay(prevTime, aiReplyTime)) fragment.appendChild(createLongDivider(aiReplyTime));
+                if (shouldShowShortDivider(prevTime, aiReplyTime)) fragment.appendChild(createShortDivider(aiReplyTime));
+            } else {
+                fragment.appendChild(createLongDivider(aiReplyTime));
+                fragment.appendChild(createShortDivider(aiReplyTime));
+            }
+            fragment.appendChild(msgEl);
+            messageContainer.appendChild(fragment);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+            lastRenderedMessageTime = aiReplyTime;
+
+            typewriterEffect(contentEl, aiReply, 30, () => {
+                isSending = false;
+                sendBtn.disabled = false;
+                sendBtn.style.opacity = '1';
+                chatInput.focus();
+                if (response.status_updates && Object.keys(response.status_updates).length > 0) {
+                    updateStatusFromBackend(response.status_updates);
+                }
+            });
+        } catch (err) {
+            if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
+            stopRotation();
+            isSending = false;
+            sendBtn.disabled = false;
+            sendBtn.style.opacity = '1';
+            chatInput.focus();
         }
     }
 
@@ -1635,7 +1716,7 @@
             messageContainer.addEventListener('scroll', () => {
                 if (messageContainer.scrollTop <= 5 && !historyIsLoading && historyHasMore) {
                     loadMoreHistory(false);
-                } else if (messageContainer.scrollTop <= 5 && !historyHasMore && !topWelcomeAdded) {
+                } else if (messageContainer.scrollTop <= 5 && !historyHasMore && !topWelcomeAdded && shouldGreet) {
                     addTopWelcomeMessages();
                     topWelcomeAdded = true;
                 }
@@ -1643,14 +1724,13 @@
         }
 
         messageContainer.addEventListener('scroll', () => {
-            const threshold = 20; // 距离底部 20px 以内认为在底部
+            const threshold = 20;
             const atBottom = messageContainer.scrollHeight - messageContainer.clientHeight - messageContainer.scrollTop <= threshold;
             userScrolledUp = !atBottom;
 
-            // 原有的“触顶加载历史”逻辑保持不变
             if (messageContainer.scrollTop <= 5 && !historyIsLoading && historyHasMore) {
                 loadMoreHistory(false);
-            } else if (messageContainer.scrollTop <= 5 && !historyHasMore && !topWelcomeAdded) {
+            } else if (messageContainer.scrollTop <= 5 && !historyHasMore && !topWelcomeAdded && shouldGreet) {
                 addTopWelcomeMessages();
                 topWelcomeAdded = true;
             }
@@ -1758,6 +1838,12 @@
             addMessageToUI('assistant', '🌱 你好，我是你的元气伙伴小元。让我们一起关注身心状态，每天进步一点点～');
             addMessageToUI('assistant', '试着和我聊聊天，生成你的状态报表吧！');
             addMessageToUI('assistant', '不知道说什么的话，可以先试着自我描述一下，这样小元可以更快了解你哦~');
+
+            if (shouldGreet) {
+                setTimeout(async () => {
+                    await sendGreetingMessage();
+                }, 500);
+            }
         } catch (err) {
             window.showToast('设置昵称失败: ' + err.message, 3000);
         }
@@ -1783,6 +1869,12 @@
         await loadMoreHistory(true);
         await fetchAndRenderSchedules();
         isDashboardReady = true;
+
+        if (shouldGreet) {
+            setTimeout(async () => {
+                await sendGreetingMessage();
+            }, 500);
+        }
     }
 
     function bindEvents() {

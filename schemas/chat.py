@@ -6,7 +6,7 @@ from models import RoleEnum
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, description="用户发送的消息")
+    message: str = Field(default="", description="用户发送的消息，空字符串表示问候请求")
 
 
 class ConversationHistoryResponse(BaseModel):

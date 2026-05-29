@@ -42,6 +42,7 @@ class UserBaseInfoResponse(BaseModel):
     has_seen_intro: bool
     avatar: str
     theme_mode: int = Field(default=2, description="主题模式：0-浅色，1-深色，2-跟随系统")
+    should_greet: bool = Field(default=False, description="是否需要开始新对话（生成问候）")
 
 
 class UpdateThemeModeRequest(BaseModel):
