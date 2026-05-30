@@ -251,7 +251,7 @@ class EmotionShift(Base):
 
 
 class MemorySnapshot(Base):
-    """记忆快照表（每日对话摘要）"""
+    """记忆快照表（每日对话摘要 + 情绪日记）"""
     __tablename__ = 'memory_snapshots'
 
     __table_args__ = (
@@ -266,6 +266,8 @@ class MemorySnapshot(Base):
         comment="所属用户ID"
     )
     summary: Mapped[str] = mapped_column(Text, nullable=False, comment="一天全对话的总结摘要")
+    diary_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="情绪日记正文（150-200字第二人称）")
+    mood_keywords: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, comment="情绪关键词列表")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="快照生成时间")
 
     def __repr__(self):
@@ -278,6 +280,7 @@ class MemoryAnchor(Base):
 
     __table_args__ = (
         Index('idx_user_anchor_type', 'user_id', 'anchor_type'),
+        Index('idx_user_last_context', 'user_id', 'last_context_at'),
         CheckConstraint('confidence >= 0 AND confidence <= 1', name='chk_confidence_range'),
     )
 
@@ -291,6 +294,8 @@ class MemoryAnchor(Base):
     anchor_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="锚点类型（如 habit, preference 等）")
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="锚点内容")
     confidence: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), nullable=False, default=0.0, comment="AI 对这条信息的确定程度 (0.00-1.00)")
+    last_context_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, comment="上次被选入上下文的时间")
+    consecutive_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="连续入选上下文的轮数")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="创建时间")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 

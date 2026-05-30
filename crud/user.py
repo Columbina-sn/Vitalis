@@ -322,3 +322,108 @@ async def update_user_theme_mode(db: AsyncSession, user_id: int, theme_mode: int
         user.theme_mode = theme_mode
         await db.flush()
     return user
+
+
+async def get_diary_dates_by_month(
+    db: AsyncSession, user_id: int
+) -> list[dict]:
+    """
+    获取用户所有有日记的日期，按月份分组。
+    返回格式: [{"year": 2026, "month": 5, "dates": [1, 3, 15, ...]}, ...]
+    """
+    from sqlalchemy import extract
+
+    result = await db.execute(
+        select(MemorySnapshot)
+        .where(
+            MemorySnapshot.user_id == user_id,
+            MemorySnapshot.diary_content.isnot(None),
+            MemorySnapshot.diary_content != ""
+        )
+        .order_by(MemorySnapshot.created_at.desc())
+    )
+    snapshots = result.scalars().all()
+
+    # 按年月分组
+    month_map: dict[str, set] = {}
+    for s in snapshots:
+        key = f"{s.created_at.year}-{s.created_at.month:02d}"
+        if key not in month_map:
+            month_map[key] = set()
+        month_map[key].add(s.created_at.day)
+
+    result_list = []
+    for key in sorted(month_map.keys(), reverse=True):
+        year_str, month_str = key.split("-")
+        result_list.append({
+            "year": int(year_str),
+            "month": int(month_str),
+            "dates": sorted(month_map[key], reverse=True)
+        })
+
+    return result_list
+
+
+async def get_diary_by_date(
+    db: AsyncSession, user_id: int, target_date
+) -> Optional[dict]:
+    """
+    获取指定日期的日记全文 + 当日状态快照。
+    target_date 为 date 对象。
+    """
+    from datetime import datetime as dt
+
+    start_dt = dt.combine(target_date, dt.min.time())
+    end_dt = dt.combine(target_date, dt.max.time())
+
+    # 获取该日期的记忆快照（取最晚一条）
+    snapshot_result = await db.execute(
+        select(MemorySnapshot)
+        .where(
+            MemorySnapshot.user_id == user_id,
+            MemorySnapshot.created_at >= start_dt,
+            MemorySnapshot.created_at <= end_dt,
+            MemorySnapshot.diary_content.isnot(None),
+            MemorySnapshot.diary_content != ""
+        )
+        .order_by(MemorySnapshot.created_at.desc())
+        .limit(1)
+    )
+    snapshot = snapshot_result.scalar_one_or_none()
+
+    # 获取当日状态快照（取最接近的记录）
+    from models import UserStatusHistory
+
+    status_result = await db.execute(
+        select(UserStatusHistory)
+        .where(
+            UserStatusHistory.user_id == user_id,
+            UserStatusHistory.recorded_at >= start_dt,
+            UserStatusHistory.recorded_at <= end_dt
+        )
+        .order_by(UserStatusHistory.recorded_at.desc())
+        .limit(1)
+    )
+    status_record = status_result.scalar_one_or_none()
+
+    if not snapshot:
+        return None
+
+    data = {
+        "diary": snapshot.diary_content or "",
+        "summary": snapshot.summary or "",
+        "mood_keywords": snapshot.mood_keywords or [],
+        "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
+    }
+
+    if status_record:
+        data["status"] = {
+            "physical_vitality": status_record.physical_vitality,
+            "emotional_tone": status_record.emotional_tone,
+            "relationship_connection": status_record.relationship_connection,
+            "self_worth": status_record.self_worth,
+            "meaning_direction": status_record.meaning_direction,
+            "psychological_harmony_index": status_record.psychological_harmony_index,
+        }
+
+    return data

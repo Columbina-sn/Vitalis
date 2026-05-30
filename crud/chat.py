@@ -21,8 +21,8 @@ async def get_user_full_info(
 ) -> Optional[Dict[str, Any]]:
     """
     获取用户的完整上下文信息：状态、近7天情绪转折（最多5条）、最近4条对话、
-    长期记忆（近21天锚点按置信度取前15、近7天摘要最多3条，同一天只保留最晚的一条）、一年前后未完成日程最多10条、
-    最近5条已完成日程。
+    长期记忆（综合评分排序取前15，强制轮换机制）、近7天摘要最多3条（同一天只保留最晚的一条）、
+    一年前后未完成日程最多10条、最近5条已完成日程、陪伴数据（天数/消息数/画像概括）。
     """
     user = await db.get(User, user_id)
     if not user:
@@ -53,21 +53,44 @@ async def get_user_full_info(
     )
     recent_conversations = messages_result.scalars().all()
 
-    # 长期记忆：近21天内更新的锚点，按置信度降序取前15
-    two_weeks_ago = datetime.now() - timedelta(days=21)
-    anchors_result = await db.execute(
+    # 长期记忆：所有锚点参与候选，综合评分排序 + 强制轮换
+    now = datetime.now()
+    all_anchors_result = await db.execute(
         select(MemoryAnchor)
-        .where(
-            MemoryAnchor.user_id == user_id,
-            MemoryAnchor.updated_at >= two_weeks_ago
-        )
-        .order_by(desc(MemoryAnchor.confidence))
-        .limit(15)
+        .where(MemoryAnchor.user_id == user_id)
     )
-    anchors = anchors_result.scalars().all()
+    all_anchors = all_anchors_result.scalars().all()
+
+    # 综合评分排序：confidence * 10 + recency_bonus
+    def anchor_score(anchor: MemoryAnchor) -> float:
+        score = float(anchor.confidence) * 10
+        if anchor.updated_at:
+            days_since_update = (now - anchor.updated_at).total_seconds() / 86400
+            if days_since_update <= 7:
+                score += 0.5
+            elif days_since_update > 30:
+                score -= 1.0
+        return score
+
+    # 强制轮换：连续入选 >= 3 轮的锚点本轮跳过，重置计数
+    forced_skip_ids = set()
+    for a in all_anchors:
+        if a.consecutive_count >= 3:
+            forced_skip_ids.add(a.id)
+            a.consecutive_count = 0  # 重置，下一轮恢复正常
+
+    # 过滤掉被强制跳过的锚点，按综合评分降序取前15
+    candidate_anchors = [a for a in all_anchors if a.id not in forced_skip_ids]
+    candidate_anchors.sort(key=anchor_score, reverse=True)
+    anchors = candidate_anchors[:15]
+
+    # 更新选中锚点的 last_context_at 和 consecutive_count
+    for a in anchors:
+        a.last_context_at = now
+        a.consecutive_count += 1
 
     # 近7天的记忆快照，同一天只保留最晚的一条，再取最多3条（按日期降序）
-    days_ago = datetime.now() - timedelta(days=7)
+    days_ago = now - timedelta(days=7)
     snapshots_result = await db.execute(
         select(MemorySnapshot)
         .where(MemorySnapshot.user_id == user_id, MemorySnapshot.created_at >= days_ago)
@@ -85,7 +108,6 @@ async def get_user_full_info(
     snapshots = sorted(date_snapshots.values(), key=lambda s: s.created_at, reverse=True)[:3]
 
     # 一年前后未完成的日程（最多10条，优先取最近事件）
-    now = datetime.now()
     one_year_ago = now - timedelta(days=400)      # 已放宽至一年范围
     one_year_ahead = now + timedelta(days=400)
     schedules_result = await db.execute(
@@ -127,6 +149,26 @@ async def get_user_full_info(
     )
     has_today_conversation = today_conv.scalar_one_or_none() is not None
 
+    # ------ 陪伴数据（小元人格成长） ------
+    # 陪伴天数
+    conversation_days = 1
+    if user.created_at:
+        delta = now - user.created_at
+        conversation_days = max(1, delta.days)
+
+    # 累计对话轮数（用户+助手各算一轮）
+    total_msgs_result = await db.execute(
+        select(func.count(ConversationHistory.id))
+        .where(ConversationHistory.user_id == user_id)
+    )
+    total_messages = total_msgs_result.scalar() or 0
+
+    # 置信度最高的3个画像锚点的一句话概括
+    sorted_by_conf = sorted(all_anchors, key=lambda a: float(a.confidence), reverse=True)
+    top_anchors_summary = "、".join(
+        f"{a.content}" for a in sorted_by_conf[:3]
+    ) if sorted_by_conf else "尚未形成对你的了解"
+
     return {
         "status": status,
         "emotion_shifts": emotion_shifts,
@@ -135,7 +177,10 @@ async def get_user_full_info(
         "snapshots": snapshots,
         "upcoming_schedules": upcoming_schedules,
         "recent_completed_schedules": recent_completed_schedules,
-        "has_today_conversation": has_today_conversation
+        "has_today_conversation": has_today_conversation,
+        "conversation_days": conversation_days,
+        "total_messages": total_messages,
+        "top_anchors_summary": top_anchors_summary,
     }
 
 

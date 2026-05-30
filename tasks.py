@@ -94,11 +94,13 @@ async def daily_summary_task(
             user = await db.get(User, uid)
             nickname = user.nickname if user and user.nickname else "用户"
 
-            summary_text = await generate_daily_summary(conv_texts, nickname)
+            result = await generate_daily_summary(conv_texts, nickname)
 
             snapshot = MemorySnapshot(
                 user_id=uid,
-                summary=summary_text,
+                summary=result.get("summary", ""),
+                diary_content=result.get("diary", ""),
+                mood_keywords=result.get("mood_keywords", []),
                 created_at=now
             )
             db.add(snapshot)

@@ -12,7 +12,7 @@ from config.db_conf import get_db
 from core.deps import get_current_user
 from crud.user import update_user_nickname, update_user_avatar, soft_delete_user_account, get_user_status_by_user_id, \
     update_user_password, get_status_history_by_dimension, get_user_export_data_html, \
-    get_user_schedules, update_user_theme_mode
+    get_user_schedules, update_user_theme_mode, get_diary_dates_by_month, get_diary_by_date
 from models import User, ConversationHistory
 from schemas.user import (
     UserBaseInfoResponse,
@@ -413,3 +413,35 @@ async def get_schedules(
     """获取用户所有日程，按是否完成分类并各自排序"""
     data = await get_user_schedules(db, current_user.id)
     return success_response(message="获取日程成功", data=data)
+
+
+@router.get("/diary/list", summary="获取日记日期列表（按月份分组）")
+async def get_diary_list(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取用户所有有日记的日期，按月份分组返回"""
+    data = await get_diary_dates_by_month(db, current_user.id)
+    return success_response(message="获取日记日期列表成功", data=data)
+
+
+@router.get("/diary/{target_date}", summary="获取指定日期的日记")
+async def get_diary(
+    target_date: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取指定日期的日记全文 + 当日状态快照。
+    target_date 格式: YYYY-MM-DD
+    """
+    from datetime import date as date_type
+    try:
+        parsed_date = date_type.fromisoformat(target_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD 格式")
+
+    data = await get_diary_by_date(db, current_user.id, parsed_date)
+    if not data:
+        raise HTTPException(status_code=404, detail="该日期没有日记")
+    return success_response(message="获取日记成功", data=data)

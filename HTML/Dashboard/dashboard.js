@@ -181,7 +181,10 @@
     }
 
     function setUserBaseCache(avatar, hasSeenIntro, themeMode) {
-        localStorage.setItem('user_base_info', JSON.stringify({ avatar, has_seen_intro: hasSeenIntro, theme_mode: themeMode }));
+        localStorage.setItem('user_base_info', JSON.stringify({
+            avatar, has_seen_intro: hasSeenIntro, theme_mode: themeMode,
+            cached_at: Date.now()
+        }));
     }
 
     // ================================================================
@@ -191,11 +194,15 @@
         if (!forceRefresh) {
             const cached = getUserBaseCache();
             if (cached && cached.avatar && typeof cached.has_seen_intro !== 'undefined') {
-                const themeMode = cached.theme_mode != null ? cached.theme_mode : 2;
-                applyTheme(themeMode);
-                // 缓存模式下 shouldGreet 默认为 false（需要实际请求才能获取准确值）
-                shouldGreet = false;
-                return cached;
+                // 缓存超过 5 分钟则强制刷新，确保 should_greet 等时效性数据准确
+                const cacheAge = cached.cached_at ? (Date.now() - cached.cached_at) : Infinity;
+                const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 分钟
+                if (cacheAge < CACHE_MAX_AGE) {
+                    const themeMode = cached.theme_mode != null ? cached.theme_mode : 2;
+                    applyTheme(themeMode);
+                    shouldGreet = false;
+                    return cached;
+                }
             }
         }
         try {
@@ -778,6 +785,193 @@
     }
 
     // ================================================================
+    //  日记功能模块
+    // ================================================================
+    const diaryFullView = document.getElementById('diaryFullView');
+    const diaryCalendarGrid = document.getElementById('diaryCalendarGrid');
+    const diaryMonthLabel = document.getElementById('diaryMonthLabel');
+    const diaryPlaceholder = document.getElementById('diaryPlaceholder');
+    const diaryContentCard = document.getElementById('diaryContentCard');
+    const diaryDateTitle = document.getElementById('diaryDateTitle');
+    const diaryText = document.getElementById('diaryText');
+    const diaryKeywords = document.getElementById('diaryKeywords');
+    const diaryStatusCard = document.getElementById('diaryStatusCard');
+    const diaryStatusGrid = document.getElementById('diaryStatusGrid');
+
+    let diaryData = [];           // [{year, month, dates: []}, ...]
+    let diaryCurrentYear, diaryCurrentMonth;
+    let diarySelectedDate = null;
+
+    async function loadDiaryData() {
+        try {
+            const res = await window.http({
+                method: 'GET',
+                url: '/user/diary/list',
+                needAuth: true
+            });
+            diaryData = res.data || [];
+        } catch (err) {
+            diaryData = [];
+        }
+    }
+
+    function getDiaryDatesForMonth(year, month) {
+        const found = diaryData.find(d => d.year === year && d.month === month);
+        return found ? found.dates : [];
+    }
+
+    function renderDiaryCalendar(year, month) {
+        diaryCurrentYear = year;
+        diaryCurrentMonth = month;
+        diaryMonthLabel.textContent = `${year}年${month}月`;
+
+        const diaryDates = getDiaryDatesForMonth(year, month);
+        const diaryDateSet = new Set(diaryDates);
+
+        const firstDay = new Date(year, month - 1, 1).getDay();
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        const today = new Date();
+        const todayDate = today.getDate();
+        const todayMonth = today.getMonth() + 1;
+        const todayYear = today.getFullYear();
+
+        let html = '';
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="diary-calendar-day empty"></div>';
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            let cls = 'diary-calendar-day';
+            if (diaryDateSet.has(d)) cls += ' has-diary';
+            if (d === todayDate && month === todayMonth && year === todayYear) cls += ' today';
+            if (diarySelectedDate && diarySelectedDate.year === year &&
+                diarySelectedDate.month === month && diarySelectedDate.day === d) {
+                cls += ' selected';
+            }
+            html += `<div class="${cls}" data-day="${d}">${d}</div>`;
+        }
+        diaryCalendarGrid.innerHTML = html;
+
+        // 绑定日期点击
+        diaryCalendarGrid.querySelectorAll('.has-diary').forEach(el => {
+            el.addEventListener('click', () => {
+                const day = parseInt(el.dataset.day);
+                diarySelectedDate = { year, month, day };
+                renderDiaryCalendar(year, month);
+                loadDiaryForDate(year, month, day);
+            });
+        });
+    }
+
+    async function loadDiaryForDate(year, month, day) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        try {
+            const res = await window.http({
+                method: 'GET',
+                url: `/user/diary/${dateStr}`,
+                needAuth: true
+            });
+            const data = res.data;
+            if (!data) return;
+
+            diaryPlaceholder.style.display = 'none';
+            diaryContentCard.style.display = 'flex';
+
+            const weekMap = ['日', '一', '二', '三', '四', '五', '六'];
+            const dt = new Date(year, month - 1, day);
+            const weekDay = weekMap[dt.getDay()];
+            diaryDateTitle.textContent = `${year}年${month}月${day}日 星期${weekDay}`;
+
+            diaryText.textContent = data.diary || data.summary || '暂无日记内容';
+
+            // 情绪关键词
+            diaryKeywords.innerHTML = '';
+            if (data.mood_keywords && data.mood_keywords.length > 0) {
+                data.mood_keywords.forEach(kw => {
+                    const tag = document.createElement('span');
+                    tag.className = 'diary-keyword-tag';
+                    tag.textContent = kw;
+                    diaryKeywords.appendChild(tag);
+                });
+            }
+
+            // 状态快照
+            if (data.status) {
+                diaryStatusCard.style.display = 'block';
+                const labels = {
+                    physical_vitality: '身心活力',
+                    emotional_tone: '情绪基调',
+                    relationship_connection: '关系联结',
+                    self_worth: '自我价值',
+                    meaning_direction: '意义方向',
+                };
+                let statusHtml = '';
+                for (const [key, label] of Object.entries(labels)) {
+                    const val = data.status[key] || 50;
+                    statusHtml += `
+                        <div class="diary-status-item">
+                            <span class="diary-status-label">${label}</span>
+                            <span class="diary-status-value">${val}</span>
+                        </div>`;
+                }
+                // PHI
+                statusHtml += `
+                    <div class="diary-status-item" style="grid-column: 1 / -1; border-top: 1px solid #f0e0c8; padding-top: 6px; margin-top: 2px;">
+                        <span class="diary-status-label">心理和谐指数 PHI</span>
+                        <span class="diary-status-value" style="color: #b87a48;">${data.status.psychological_harmony_index || 63}</span>
+                    </div>`;
+                diaryStatusGrid.innerHTML = statusHtml;
+            } else {
+                diaryStatusCard.style.display = 'none';
+            }
+        } catch (err) {
+            diaryPlaceholder.style.display = 'flex';
+            diaryContentCard.style.display = 'none';
+            diaryPlaceholder.querySelector('p').textContent = '加载失败，请稍后重试';
+        }
+    }
+
+    async function openDiaryView() {
+        await loadDiaryData();
+        const now = new Date();
+        diaryCurrentYear = now.getFullYear();
+        diaryCurrentMonth = now.getMonth() + 1;
+
+        // 默认选中最近一个有日记的日期
+        diarySelectedDate = null;
+        if (diaryData.length > 0) {
+            // 找当前月是否有日记
+            const thisMonth = diaryData.find(d => d.year === diaryCurrentYear && d.month === diaryCurrentMonth);
+            if (thisMonth && thisMonth.dates.length > 0) {
+                const latestDay = thisMonth.dates[0]; // dates已降序排列
+                diarySelectedDate = { year: diaryCurrentYear, month: diaryCurrentMonth, day: latestDay };
+            } else {
+                // 取第一个月的最新日期
+                const firstMonth = diaryData[0];
+                diaryCurrentYear = firstMonth.year;
+                diaryCurrentMonth = firstMonth.month;
+                diarySelectedDate = { year: firstMonth.year, month: firstMonth.month, day: firstMonth.dates[0] };
+            }
+        }
+
+        renderDiaryCalendar(diaryCurrentYear, diaryCurrentMonth);
+
+        if (diarySelectedDate) {
+            await loadDiaryForDate(diarySelectedDate.year, diarySelectedDate.month, diarySelectedDate.day);
+        } else {
+            diaryPlaceholder.style.display = 'flex';
+            diaryContentCard.style.display = 'none';
+            diaryPlaceholder.querySelector('p').textContent = '还没有日记，和小元聊聊天吧';
+        }
+
+        diaryFullView.classList.add('active');
+    }
+
+    function closeDiaryView() {
+        diaryFullView.classList.remove('active');
+    }
+
+    // ================================================================
     //  用户相关事件绑定
     // ================================================================
     function bindUserEvents() {
@@ -880,6 +1074,58 @@
                 e.stopPropagation();
                 await fetchAndRenderSchedules();
                 scrollToScheduleView();
+            });
+        }
+
+        // 日记入口按钮
+        const diaryNavBtn = document.getElementById('diaryNavBtn');
+        if (diaryNavBtn) {
+            diaryNavBtn.addEventListener('click', openDiaryView);
+        }
+        // 日记关闭按钮
+        const diaryCloseBtn = document.getElementById('diaryCloseBtn');
+        if (diaryCloseBtn) {
+            diaryCloseBtn.addEventListener('click', closeDiaryView);
+        }
+        // 日记月份导航
+        const diaryPrevBtn = document.getElementById('diaryPrevMonth');
+        const diaryNextBtn = document.getElementById('diaryNextMonth');
+        if (diaryPrevBtn) {
+            diaryPrevBtn.addEventListener('click', () => {
+                diarySelectedDate = null;
+                if (diaryCurrentMonth === 1) {
+                    diaryCurrentMonth = 12;
+                    diaryCurrentYear--;
+                } else {
+                    diaryCurrentMonth--;
+                }
+                renderDiaryCalendar(diaryCurrentYear, diaryCurrentMonth);
+                diaryPlaceholder.style.display = 'flex';
+                diaryContentCard.style.display = 'none';
+                diaryPlaceholder.querySelector('p').textContent = '点击左侧有标记的日期查看当天的情绪日记';
+            });
+        }
+        if (diaryNextBtn) {
+            diaryNextBtn.addEventListener('click', () => {
+                diarySelectedDate = null;
+                if (diaryCurrentMonth === 12) {
+                    diaryCurrentMonth = 1;
+                    diaryCurrentYear++;
+                } else {
+                    diaryCurrentMonth++;
+                }
+                renderDiaryCalendar(diaryCurrentYear, diaryCurrentMonth);
+                diaryPlaceholder.style.display = 'flex';
+                diaryContentCard.style.display = 'none';
+                diaryPlaceholder.querySelector('p').textContent = '点击左侧有标记的日期查看当天的情绪日记';
+            });
+        }
+        // 点击遮罩关闭日记
+        if (diaryFullView) {
+            diaryFullView.addEventListener('click', (e) => {
+                if (e.target === diaryFullView) {
+                    closeDiaryView();
+                }
             });
         }
 

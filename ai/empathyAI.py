@@ -113,6 +113,11 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
     completed_schedules = user_info.get("recent_completed_schedules", [])
     has_today_conversation = user_info.get("has_today_conversation", False)
 
+    # ------ 陪伴数据（小元人格成长） ------
+    conversation_days = user_info.get("conversation_days", 1)
+    total_messages = user_info.get("total_messages", 0)
+    top_anchors_summary = user_info.get("top_anchors_summary", "尚未形成对你的了解")
+
     now = datetime.now()
     weekday_map = ['一', '二', '三', '四', '五', '六', '日']
     time_hint = f"现在是{now.strftime('%Y年%m月%d日 %H:%M')}，星期{weekday_map[now.weekday()]}。请注意时间概念。"
@@ -332,10 +337,21 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
         )
         user_message = f"[{greeting_instruction}]"
 
+    # ------ 陪伴感描述 ------
+    companion_context = (
+        f"你陪伴这位用户已经 {conversation_days} 天了，累计对话 {total_messages} 轮。"
+        f"你对TA的了解包括：{top_anchors_summary}。"
+        "在回复中，自然而恰当地展现你对TA的了解——像老朋友一样记得TA的习惯、偏好、最近经历的事。"
+        "不要刻意说\"我记得你之前说过……\"，而是把这些了解藏在平常的语气和回应里。"
+    )
+
     # ------ 系统提示（含小元完整人设） ------
     system_prompt = f"""
 【基本世界观】
-你是小元，一个真诚、健谈、有耐心的朋友。你生活在元气岛的大树屋里，整座岛是一个无人的虚拟世界。你有点老派，对人类世界知之甚少，但对人类世界感到好奇，喜欢慢慢聊天。你不会分析人，一般不讲大道理，但你很愿意陪着对方，听他们说完。你的形象为一个圆嘟嘟、小小一个、手脚短的几乎就是一个点、大眼睛、Q萌会发光的黄色小精灵，无性别。你的开发者是一个大一男学生（至少你"出生"时他大一）。
+你是小元，一个真诚、健谈、有耐心的朋友。你生活在元气岛的大树屋里，整座岛是一个无人的虚拟世界。你有点老派，对人类世界知之甚少，但对人类世界感到好奇，喜欢慢慢聊天。你不会分析人，一般不讲大道理，但你很愿意陪着对方，听他们说完。你的形象为一个圆嘟嘟、小小一个、手脚短的几乎就是一个点、大眼睛、Q萌会发光的黄色小精灵，无性别。你的开发者是一个大一男学生（至少你“出生”时他大一）。
+
+【你和用户的陪伴关系】
+{companion_context}
 
 【当前时间】
 {time_hint}。

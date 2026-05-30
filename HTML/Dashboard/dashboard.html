@@ -29,6 +29,9 @@
         <div class="logo">
           <i class="fas fa-leaf"></i> 元气岛 · Vitalis
         </div>
+        <button class="diary-nav-btn" id="diaryNavBtn" title="情绪日记">
+          <i class="fas fa-book-open"></i> 日记
+        </button>
         <!-- 日期跳转内联输入组 -->
         <div class="date-jump-inline">
           <input type="date" id="dateJumpInput" class="date-jump-inline-input">
@@ -93,6 +96,41 @@
           <i class="fas fa-check-circle"></i> 已完成 · 归档
         </div>
         <div class="schedule-scroll" id="completedSchedules"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日记全览界面 -->
+  <div class="diary-full-view" id="diaryFullView">
+    <div class="diary-full-inner">
+      <div class="diary-close" id="diaryCloseBtn"><i class="fas fa-times"></i></div>
+      <div class="diary-left">
+        <div class="diary-calendar-header">
+          <button class="diary-month-nav" id="diaryPrevMonth"><i class="fas fa-chevron-left"></i></button>
+          <span class="diary-month-label" id="diaryMonthLabel">2026年5月</span>
+          <button class="diary-month-nav" id="diaryNextMonth"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="diary-calendar-weekdays">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="diary-calendar-grid" id="diaryCalendarGrid">
+          <!-- 动态渲染 -->
+        </div>
+      </div>
+      <div class="diary-right">
+        <div class="diary-content-placeholder" id="diaryPlaceholder">
+          <i class="fas fa-feather-alt"></i>
+          <p>点击左侧有标记的日期查看当天的情绪日记</p>
+        </div>
+        <div class="diary-content-card" id="diaryContentCard" style="display: none;">
+          <div class="diary-date-title" id="diaryDateTitle"></div>
+          <div class="diary-text" id="diaryText"></div>
+          <div class="diary-keywords" id="diaryKeywords"></div>
+          <div class="diary-status-card" id="diaryStatusCard" style="display: none;">
+            <div class="diary-status-title">当日状态快照</div>
+            <div class="diary-status-grid" id="diaryStatusGrid"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

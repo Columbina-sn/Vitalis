@@ -1,9 +1,8 @@
 -- ============================================================
--- Vitalis 数据库完整初始化脚本 v2.1
+-- Vitalis 数据库完整初始化脚本 v2.2
 -- 变更说明：
---   - users 表新增 current_token, current_login_ip, theme_mode
---   - emotion_shifts 表移除 trigger_keywords 字段
---   - memory_anchors 表移除 last_mentioned_at 字段
+--   - memory_anchors 表新增 last_context_at, consecutive_count（锚点轮换机制）
+--   - memory_snapshots 表新增 diary_content, mood_keywords（情绪日记功能）
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS vitalis
@@ -188,20 +187,22 @@ CREATE TABLE IF NOT EXISTS admin_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员操作日志表';
 
 -- -------------------------------------------
--- 10. 记忆快照表（对话摘要）
+-- 10. 记忆快照表（对话摘要 + 情绪日记）
 -- -------------------------------------------
 CREATE TABLE IF NOT EXISTS memory_snapshots (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '快照主键ID',
     user_id INT UNSIGNED NOT NULL COMMENT '所属用户ID',
     summary TEXT NOT NULL COMMENT '一天全对话的总结摘要',
+    diary_content TEXT NULL COMMENT '情绪日记正文（150-200字第二人称）',
+    mood_keywords JSON NULL COMMENT '情绪关键词列表',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '快照生成时间',
     PRIMARY KEY (id),
     KEY idx_user_created_snapshot (user_id, created_at),
     CONSTRAINT fk_memory_snapshots_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='记忆快照表（每日对话摘要）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='记忆快照表（每日对话摘要 + 情绪日记）';
 
 -- -------------------------------------------
--- 11. 记忆锚点表（用户画像）
+-- 11. 记忆锚点表（用户画像，含轮换机制）
 -- -------------------------------------------
 CREATE TABLE IF NOT EXISTS memory_anchors (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '锚点主键ID',
@@ -209,13 +210,16 @@ CREATE TABLE IF NOT EXISTS memory_anchors (
     anchor_type VARCHAR(32) NOT NULL COMMENT '锚点类型（如 habit, preference, relationship 等）',
     content TEXT NOT NULL COMMENT '锚点内容',
     confidence DECIMAL(3,2) NOT NULL DEFAULT 0.00 COMMENT 'AI 确定程度 (0.00-1.00)',
+    last_context_at DATETIME NULL COMMENT '上次被选入上下文的时间',
+    consecutive_count INT NOT NULL DEFAULT 0 COMMENT '连续入选上下文的轮数',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
     KEY idx_user_anchor_type (user_id, anchor_type),
+    KEY idx_user_last_context (user_id, last_context_at),
     CONSTRAINT chk_confidence_range CHECK (confidence >= 0 AND confidence <= 1),
     CONSTRAINT fk_memory_anchors_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='记忆锚点表（长期用户画像）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='记忆锚点表（长期用户画像，含轮换机制）';
 
 -- -------------------------------------------
 -- 12. 用户日程表
