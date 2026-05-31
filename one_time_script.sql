@@ -2,7 +2,7 @@
 -- -- 升级到 v2.2：新增 login_history 表，调整 users 表字段
 -- -- ============================================================
 
--- USE vitalis;
+USE vitalis;
 
 -- -- 为 users 表增加软删除字段及索引
 -- ALTER TABLE users

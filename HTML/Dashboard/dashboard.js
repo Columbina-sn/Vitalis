@@ -809,7 +809,7 @@
                 url: '/user/diary/list',
                 needAuth: true
             });
-            diaryData = res.data || [];
+            diaryData = res || [];
         } catch (err) {
             diaryData = [];
         }
@@ -871,7 +871,7 @@
                 url: `/user/diary/${dateStr}`,
                 needAuth: true
             });
-            const data = res.data;
+            const data = res;
             if (!data) return;
 
             diaryPlaceholder.style.display = 'none';
