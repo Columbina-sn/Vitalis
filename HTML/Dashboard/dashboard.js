@@ -865,6 +865,12 @@
 
     async function loadDiaryForDate(year, month, day) {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // 显示加载状态
+        diaryPlaceholder.style.display = 'flex';
+        diaryContentCard.style.display = 'none';
+        diaryPlaceholder.querySelector('p').textContent = '⏳ 正在翻开这一天的日记……';
+
         try {
             const res = await window.http({
                 method: 'GET',
@@ -872,17 +878,24 @@
                 needAuth: true
             });
             const data = res;
-            if (!data) return;
+            if (!data) {
+                diaryPlaceholder.querySelector('p').textContent = '这一天还没有日记记录';
+                return;
+            }
 
             diaryPlaceholder.style.display = 'none';
             diaryContentCard.style.display = 'flex';
+            // 重置日记内容区滚动位置
+            diaryContentCard.scrollTop = 0;
 
             const weekMap = ['日', '一', '二', '三', '四', '五', '六'];
             const dt = new Date(year, month - 1, day);
             const weekDay = weekMap[dt.getDay()];
             diaryDateTitle.textContent = `${year}年${month}月${day}日 星期${weekDay}`;
 
-            diaryText.textContent = data.diary || data.summary || '暂无日记内容';
+            // 优先显示日记正文，其次摘要
+            const displayText = data.diary || data.summary || '暂无日记内容';
+            diaryText.textContent = displayText;
 
             // 情绪关键词
             diaryKeywords.innerHTML = '';
@@ -907,7 +920,7 @@
                 };
                 let statusHtml = '';
                 for (const [key, label] of Object.entries(labels)) {
-                    const val = data.status[key] || 50;
+                    const val = data.status[key] != null ? data.status[key] : 50;
                     statusHtml += `
                         <div class="diary-status-item">
                             <span class="diary-status-label">${label}</span>
@@ -915,10 +928,11 @@
                         </div>`;
                 }
                 // PHI
+                const phiVal = data.status.psychological_harmony_index != null ? data.status.psychological_harmony_index : 63;
                 statusHtml += `
                     <div class="diary-status-item" style="grid-column: 1 / -1; border-top: 1px solid #f0e0c8; padding-top: 6px; margin-top: 2px;">
                         <span class="diary-status-label">心理和谐指数 PHI</span>
-                        <span class="diary-status-value" style="color: #b87a48;">${data.status.psychological_harmony_index || 63}</span>
+                        <span class="diary-status-value" style="color: #b87a48;">${phiVal}</span>
                     </div>`;
                 diaryStatusGrid.innerHTML = statusHtml;
             } else {
@@ -927,7 +941,11 @@
         } catch (err) {
             diaryPlaceholder.style.display = 'flex';
             diaryContentCard.style.display = 'none';
-            diaryPlaceholder.querySelector('p').textContent = '加载失败，请稍后重试';
+            if (err.status === 404) {
+                diaryPlaceholder.querySelector('p').textContent = '🍂 这一天还没有日记，和小元聊聊天吧';
+            } else {
+                diaryPlaceholder.querySelector('p').textContent = '加载失败，请稍后重试';
+            }
         }
     }
 

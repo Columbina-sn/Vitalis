@@ -614,6 +614,10 @@ body[data-theme="dark"]::-webkit-scrollbar-thumb {
   background: #5a4e3a !important;
   border-radius: 10px;
 }
+/* Firefox 深色模式滚动条（日记面板） */
+body[data-theme="dark"] .diary-right {
+  scrollbar-color: #5a4e3a #2b261c;
+}
 
 /* 登录卡片的太阳改成月亮 */
 body[data-theme="dark"] .auth-card::after {
@@ -697,6 +701,102 @@ body[data-theme="dark"] .date-history-messages .message.right::after {
   background: #383225 !important;
   border-right-color: #5a4e38 !important;
   border-bottom-color: #5a4e38 !important;
+}
+
+/* ===== 日记全览视图深色适配 ===== */
+body[data-theme="dark"] .diary-full-view {
+  background: rgba(20, 15, 10, 0.7) !important;
+}
+body[data-theme="dark"] .diary-full-inner {
+  background: #2b2720 !important;
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.35) !important;
+}
+/* 左侧日历面板 */
+body[data-theme="dark"] .diary-left {
+  background: #242018 !important;
+  border-right-color: #4a4132 !important;
+}
+body[data-theme="dark"] .diary-month-label {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .diary-month-nav {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .diary-month-nav:hover {
+  background: #3a3226 !important;
+}
+body[data-theme="dark"] .diary-calendar-weekdays {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .diary-calendar-day {
+  color: #a5957a !important;
+}
+body[data-theme="dark"] .diary-calendar-day.has-diary {
+  background: #4a3f2e !important;
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .diary-calendar-day.has-diary:hover {
+  background: #5a4e3a !important;
+  color: #e0c090 !important;
+}
+body[data-theme="dark"] .diary-calendar-day.today {
+  border-color: #d9b382 !important;
+}
+body[data-theme="dark"] .diary-calendar-day.selected {
+  background: #a6855a !important;
+  color: #fff !important;
+}
+/* 右侧日记内容面板 */
+body[data-theme="dark"] .diary-right {
+  background: #242018 !important;
+  background-image: repeating-linear-gradient(transparent, transparent 27px, #3a3028 28px) !important;
+  background-size: 100% 28px;
+}
+body[data-theme="dark"] .diary-close {
+  color: #d9b382 !important;
+}
+body[data-theme="dark"] .diary-content-placeholder {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .diary-date-title {
+  color: #d9b382 !important;
+  border-bottom-color: #4a4132 !important;
+}
+body[data-theme="dark"] .diary-text {
+  color: #d4c1a5 !important;
+  background: #242018 !important;
+  border-color: #4a4132 !important;
+  box-shadow: inset 0 0 0 1px rgba(100, 85, 60, 0.4), 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+body[data-theme="dark"] .diary-text::before {
+  background: linear-gradient(90deg, #a6855a, #5a4e3a) !important;
+}
+body[data-theme="dark"] .diary-keyword-tag {
+  background: #3a3226 !important;
+  color: #d9b382 !important;
+  border-color: #5a4e3a !important;
+}
+body[data-theme="dark"] .diary-status-card {
+  background: #242018 !important;
+  border-color: #4a4132 !important;
+}
+body[data-theme="dark"] .diary-status-title {
+  color: #8a7a60 !important;
+}
+body[data-theme="dark"] .diary-status-label {
+  color: #a5957a !important;
+}
+body[data-theme="dark"] .diary-status-value {
+  color: #d9b382 !important;
+}
+/* 日记滚动条深色 */
+body[data-theme="dark"] .diary-right::-webkit-scrollbar-track,
+body[data-theme="dark"] .diary-left::-webkit-scrollbar-track {
+  background: #2b261c !important;
+}
+body[data-theme="dark"] .diary-right::-webkit-scrollbar-thumb,
+body[data-theme="dark"] .diary-left::-webkit-scrollbar-thumb {
+  background: #5a4e3a !important;
 }
 
 /* ===== 深色模式手动触发按钮 – 高区分度方案 ===== */

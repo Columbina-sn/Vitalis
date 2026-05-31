@@ -101,7 +101,7 @@ async def daily_summary_task(
                 summary=result.get("summary", ""),
                 diary_content=result.get("diary", ""),
                 mood_keywords=result.get("mood_keywords", []),
-                created_at=now
+                created_at=start_time  # 使用统计区间的起始时间，代表"昨天"的日记
             )
             db.add(snapshot)
 
