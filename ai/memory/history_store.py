@@ -1,15 +1,15 @@
 # ai/memory/history_store.py
 """文件级对话历史持久化存储（JSON）。
 
-每用户一个 JSON 文件，存储压缩摘要和近期消息。
+每用户一个 JSON 文件，存储当天会话的压缩摘要和近期消息。
+**每天自动重置**——新的一天开始时会清空旧数据。
 不依赖 MySQL 表结构变更——写入 conversation_history 表的逻辑不变，
-此模块作为额外的上下文持久化层。
+此模块作为额外的短期上下文持久化层。
 """
 
 import json
-import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
@@ -18,15 +18,20 @@ from utills.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
+def _today() -> str:
+    return date.today().isoformat()
+
+
 class HistoryStore:
-    """文件级对话历史存储。
+    """文件级对话历史存储（按天自动重置）。
 
     JSON 文件结构:
     {
       "user_id": 1,
+      "date": "2026-07-31",
       "total_rounds": 42,
       "rounds_since_compression": 12,
-      "compressed_summaries": ["摘要1...", "摘要2..."],
+      "compressed_summaries": ["[第1-15轮摘要] ..."],
       "recent_messages": [
         {"role": "user", "content": "...", "created_at": "2026-07-31T15:30:00"},
         {"role": "assistant", "content": "...", "created_at": "2026-07-31T15:30:05"}
@@ -52,18 +57,29 @@ class HistoryStore:
         return self._base_dir / f"{user_id}.json"
 
     def _load(self, user_id: int) -> dict:
-        """从文件加载数据，不存在则返回默认结构"""
+        """从文件加载数据。
+
+        自动按天重置：如果文件中记录的日期不是今天，返回全新的默认数据，
+        旧文件被覆盖。这样每天都是干净的上下文。
+        """
         path = self._file_path(user_id)
+        today = _today()
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                # 跨天了 → 重置
+                if data.get("date") != today:
+                    logger.info(f"用户 {user_id} 跨天重置对话历史 (旧日期: {data.get('date')})")
+                    return self._default_data(user_id)
+                return data
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"用户 {user_id} 历史文件损坏，重建: {e}")
         return self._default_data(user_id)
 
     def _save(self, user_id: int, data: dict):
         """原子写入：先写临时文件再替换"""
+        data["date"] = _today()
         data["updated_at"] = datetime.now().isoformat()
         path = self._file_path(user_id)
         tmp_path = path.with_suffix(".tmp")
@@ -75,6 +91,7 @@ class HistoryStore:
     def _default_data(user_id: int) -> dict:
         return {
             "user_id": user_id,
+            "date": _today(),
             "total_rounds": 0,
             "rounds_since_compression": 0,
             "compressed_summaries": [],
@@ -97,7 +114,7 @@ class HistoryStore:
             self._save(user_id, data)
 
     async def get_context(self, user_id: int) -> dict:
-        """获取组装好的上下文数据：所有压缩摘要 + 全部近期消息"""
+        """获取当天会话的上下文：压缩摘要 + 全部近期消息"""
         async with self._get_lock(user_id):
             data = self._load(user_id)
         return {
@@ -118,7 +135,7 @@ class HistoryStore:
         return data["rounds_since_compression"]
 
     async def get_total_rounds(self, user_id: int) -> int:
-        """获取总轮数"""
+        """获取当天总轮数"""
         async with self._get_lock(user_id):
             data = self._load(user_id)
         return data["total_rounds"]
@@ -133,15 +150,20 @@ class HistoryStore:
 
     async def compress(self, user_id: int, summary_text: str):
         """执行压缩：将近期消息的摘要追加到 compressed_summaries，
-        清空 recent_messages，重置计数器。"""
+        清空 recent_messages，重置计数器。
+
+        压缩只影响当天会话。跨天时整个文件重置，摘要也随之清空。
+        """
         async with self._get_lock(user_id):
             data = self._load(user_id)
-            label = f"第{data['total_rounds'] - data['rounds_since_compression'] + 1}-{data['total_rounds']}轮摘要"
+            start = data["total_rounds"] - data["rounds_since_compression"] + 1
+            end = data["total_rounds"]
+            label = f"第{start}-{end}轮摘要"
             data["compressed_summaries"].append(f"[{label}] {summary_text}")
             data["recent_messages"] = []
             data["rounds_since_compression"] = 0
             self._save(user_id, data)
-            logger.info(f"用户 {user_id} 上下文已压缩，累计摘要 {len(data['compressed_summaries'])} 段")
+            logger.info(f"用户 {user_id} 上下文已压缩（{start}-{end}轮），当天累计 {len(data['compressed_summaries'])} 段摘要")
 
     async def clear(self, user_id: int):
         """清除用户的所有历史（管理员操作或测试用）"""
