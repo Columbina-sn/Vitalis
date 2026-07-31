@@ -4,7 +4,8 @@ from typing import List
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from ai.deepseek_client import deepseek_chat_messages
+from ai.llm import get_shadow_llm
+from ai.deepseek_client import extract_json_from_text
 from utills.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -51,20 +52,13 @@ async def generate_daily_summary(
     conversations: List[str],
     user_nickname: str = "用户"
 ) -> dict:
-    """调用DeepSeek生成一天对话的记忆, 返回包含 summary/diary/mood_keywords 的字典."""
+    """调用 LLM 生成一天对话的记忆, 返回包含 summary/diary/mood_keywords 的字典."""
     messages = build_summary_messages(conversations, user_nickname)
-    # LangChain 消息 → dict（兼容原有的 httpx 调用路径）
-    dict_messages = []
-    for msg in messages:
-        if isinstance(msg, SystemMessage):
-            dict_messages.append({"role": "system", "content": msg.content})
-        elif isinstance(msg, HumanMessage):
-            dict_messages.append({"role": "user", "content": msg.content})
-        else:
-            dict_messages.append({"role": "user", "content": str(msg.content)})
-
     try:
-        result = await deepseek_chat_messages(dict_messages)
+        llm = get_shadow_llm()
+        response = await llm.ainvoke(messages)
+        result = extract_json_from_text(response.content)
+
         summary = result.get("summary", "").strip()
         if not summary:
             summary = "暂无有效摘要"

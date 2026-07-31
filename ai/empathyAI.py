@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 
+from ai.llm import get_empathy_llm
 from utills.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -457,27 +458,11 @@ def build_messages(
 
 
 async def analog_ai(messages: List[BaseMessage]) -> dict:
-    """调用情感 AI，返回纯文本回复字典。
-
-    使用久经考验的 deepseek_chat_text() 作为 HTTP 调用层，
-    LangChain 消息类型仅用于内部抽象，调用前转为 dict。
-    """
-    from ai.deepseek_client import deepseek_chat_text
-
+    """调用情感 AI（LangChain DeepSeekChatOpenAI），返回纯文本回复字典"""
     try:
-        # LangChain 消息 → dict（兼容原有的 httpx 调用路径）
-        dict_messages = []
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                dict_messages.append({"role": "system", "content": msg.content})
-            elif isinstance(msg, HumanMessage):
-                dict_messages.append({"role": "user", "content": msg.content})
-            elif isinstance(msg, AIMessage):
-                dict_messages.append({"role": "assistant", "content": msg.content})
-            else:
-                dict_messages.append({"role": "user", "content": str(msg.content)})
-
-        reply = await deepseek_chat_text(dict_messages)
+        llm = get_empathy_llm()
+        response = await llm.ainvoke(messages)
+        reply = response.content
         return {"reply": reply.strip() or "刚刚卡住了，你接着说。"}
     except Exception as e:
         logger.error(f"情感AI调用失败: {e}", exc_info=True)

@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from ai.llm import get_productivity_llm
+from ai.deepseek_client import extract_json_from_text
 from utills.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -244,25 +246,11 @@ def build_messages(
 # ---------- 调用工作 AI ----------
 
 async def analog_ai(messages: list) -> dict:
-    """调用工作 AI，返回结构化字典。
-
-    使用久经考验的 deepseek_chat_messages() 作为 HTTP 调用层
-    （自带 JSON 解析 + 重试），LangChain 消息类型仅用于内部抽象。
-    """
-    from ai.deepseek_client import deepseek_chat_messages
-
+    """调用工作 AI（LangChain DeepSeekChatOpenAI + extract_json_from_text），返回结构化字典"""
     try:
-        # LangChain 消息 → dict
-        dict_messages = []
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                dict_messages.append({"role": "system", "content": msg.content})
-            elif isinstance(msg, HumanMessage):
-                dict_messages.append({"role": "user", "content": msg.content})
-            else:
-                dict_messages.append({"role": "user", "content": str(msg.content)})
-
-        result = await deepseek_chat_messages(dict_messages, temperature=0.2)
+        llm = get_productivity_llm()
+        response = await llm.ainvoke(messages)
+        result = extract_json_from_text(response.content)
         return {
             "status_changes": result.get("status_changes", {}),
             "should_add_emotion_shifts": result.get("should_add_emotion_shifts", False),
