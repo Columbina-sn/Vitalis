@@ -2,6 +2,8 @@
 from datetime import datetime
 from typing import List
 
+from langchain_core.messages import SystemMessage, HumanMessage
+
 from ai.deepseek_client import deepseek_chat_messages
 from utills.logging_conf import get_logger
 
@@ -11,7 +13,7 @@ logger = get_logger(__name__)
 def build_summary_messages(
     conversations: List[str],   # 按时间正序的对话文本, 每一条格式 "[角色] 内容"
     user_nickname: str = "用户"
-) -> list[dict[str, str]]:
+) -> list:
     """
     构建总结AI所需的消息列表, 要求模型输出摘要 + 情绪日记 + 关键词.
     conversations 是按时间正序的对话记录文本数组.
@@ -39,8 +41,8 @@ def build_summary_messages(
     user_message = f"以下是 {user_nickname} 今天的全部对话记录, 请生成记忆:\n\n{conversation_text}"
 
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message}
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_message),
     ]
     return messages
 
@@ -51,8 +53,18 @@ async def generate_daily_summary(
 ) -> dict:
     """调用DeepSeek生成一天对话的记忆, 返回包含 summary/diary/mood_keywords 的字典."""
     messages = build_summary_messages(conversations, user_nickname)
+    # LangChain 消息 → dict（兼容原有的 httpx 调用路径）
+    dict_messages = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            dict_messages.append({"role": "system", "content": msg.content})
+        elif isinstance(msg, HumanMessage):
+            dict_messages.append({"role": "user", "content": msg.content})
+        else:
+            dict_messages.append({"role": "user", "content": str(msg.content)})
+
     try:
-        result = await deepseek_chat_messages(messages)
+        result = await deepseek_chat_messages(dict_messages)
         summary = result.get("summary", "").strip()
         if not summary:
             summary = "暂无有效摘要"

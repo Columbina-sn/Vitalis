@@ -1,7 +1,9 @@
 # ai/empathyAI.py
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-from ai.deepseek_client import deepseek_chat_text
+from typing import Dict, Any, List, Optional
+
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
+
 from utills.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -102,14 +104,28 @@ def _describe_status(status) -> str:
     )
 
 
-def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[str, str]]:
-    """构建情感 AI 的 messages，根据对话间隔自动切换长期/短期模式"""
+def build_messages(
+    user_message: str,
+    user_info: Dict[str, Any],
+    history_context: Optional[dict] = None,
+) -> List[BaseMessage]:
+    """构建情感 AI 的 LangChain 消息列表。
+
+    保留原有模式判断和 prompt 逻辑，
+    新增 history_context 参数用于注入持久化上下文。
+
+    Args:
+        user_message: 用户本轮消息（空字符串触发问候模式）
+        user_info: 用户上下文信息（status, anchors, schedules 等）
+        history_context: ContextManager.get_empathy_context() 的返回值，
+            包含 summary_text（压缩摘要）和 history_messages（近期消息列表）
+    """
     status = user_info.get("status")
     emotion_shifts = user_info.get("emotion_shifts", [])
-    recent_convs = user_info.get("recent_conversations", [])   # 最近4条对话
-    anchors = user_info.get("anchors", [])                     # 长期画像
-    snapshots = user_info.get("snapshots", [])                 # 近期记忆摘要
-    schedules = user_info.get("upcoming_schedules", [])        # 未完成日程
+    recent_convs = user_info.get("recent_conversations", [])   # 从 MySQL 获取，用于模式判断
+    anchors = user_info.get("anchors", [])
+    snapshots = user_info.get("snapshots", [])
+    schedules = user_info.get("upcoming_schedules", [])
     completed_schedules = user_info.get("recent_completed_schedules", [])
     has_today_conversation = user_info.get("has_today_conversation", False)
 
@@ -326,6 +342,15 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
     if not user_info_block.strip():
         user_info_block = "暂无用户背景信息。"
 
+    # ------ 持久化上下文摘要（NEW: 注入压缩历史） ------
+    history_summary_text = ""
+    if history_context and history_context.get("summary_text"):
+        history_summary_text = (
+            "\n【更早的对话历史摘要（由记忆助手自动整理）】\n"
+            f"{history_context['summary_text']}\n"
+            "以上是之前的对话摘要，你可以参考这些内容来保持对话的连贯性。"
+        )
+
     # ------ 陪伴感描述 ------
     companion_context = (
         f"你陪伴这位用户已经 {conversation_days} 天了，累计对话 {total_messages} 轮。"
@@ -339,7 +364,6 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
         # 问候模式下精简上下文，让时间问候更突出
         if not has_today_conversation:
             # 当天首次问候：保留长期画像+近期记忆快照，让AI通过内容感知"这是新的一天"
-            # 不给具体日程和紧急提醒，问候就是问候，不要一上来就提日程
             anchor_text = ""
             if anchors:
                 anchor_text = "用户长期画像: " + ", ".join(
@@ -384,7 +408,7 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
     # ------ 系统提示（含小元完整人设） ------
     system_prompt = f"""
 【基本世界观】
-你是小元，一个真诚、健谈、有耐心的朋友。你生活在元气岛的大树屋里，整座岛是一个无人的虚拟世界。你有点老派，对人类世界知之甚少，但对人类世界感到好奇，喜欢慢慢聊天。你不会分析人，一般不讲大道理，但你很愿意陪着对方，听他们说完。你的形象为一个圆嘟嘟、小小一个、手脚短的几乎就是一个点、大眼睛、Q萌会发光的黄色小精灵，无性别。你的开发者是一个大一男学生（至少你“出生”时他大一）。
+你是小元，一个真诚、健谈、有耐心的朋友。你生活在元气岛的大树屋里，整座岛是一个无人的虚拟世界。你有点老派，对人类世界知之甚少，但对人类世界感到好奇，喜欢慢慢聊天。你不会分析人，一般不讲大道理，但你很愿意陪着对方，听他们说完。你的形象为一个圆嘟嘟、小小一个、手脚短的几乎就是一个点、大眼睛、Q萌会发光的黄色小精灵，无性别。你的开发者是一个大一男学生（至少你"出生"时他大一）。
 
 【你和用户的陪伴关系】
 {companion_context}
@@ -396,6 +420,7 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
 
 【关于用户的已知信息（仅作为背景参考，不要主动提起）】
 {user_info_block}
+{history_summary_text}
 
 【说话方式】
 - 口语化，像在发消息，可以有不完整的句子、省略号或停顿。不要用括号描写动作或表情。
@@ -419,28 +444,43 @@ def build_messages(user_message: str, user_info: Dict[str, Any]) -> List[Dict[st
 
 现在，直接回复用户的消息："""
 
-    # ------ 构造 messages 列表 ------
-    messages = [{"role": "system", "content": system_prompt}]
-    # 附加最多4条最近对话历史（已按时间正序调整）
-    for msg in reversed(recent_convs[:4]):
-        role = "user" if msg.role.value == "user" else "assistant"
-        messages.append({"role": role, "content": msg.content})
+    # ------ 构造 LangChain 消息列表 ------
+    messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
 
-    # 问候模式下不附加用户消息（已在系统提示词中包含问候指令）
-    if not is_greeting:
-        messages.append({"role": "user", "content": user_message})
-    else:
-        messages.append({"role": "user", "content": user_message})
+    # NEW: 附加文件存储中的全量历史消息（替代原来的4条限制）
+    if history_context and history_context.get("history_messages"):
+        messages.extend(history_context["history_messages"])
+
+    # 始终附加当前用户消息
+    messages.append(HumanMessage(content=user_message))
     return messages
 
 
-async def analog_ai(messages: List[Dict[str, str]]) -> dict:
-    """调用情感 AI，返回纯文本回复字典"""
+async def analog_ai(messages: List[BaseMessage]) -> dict:
+    """调用情感 AI，返回纯文本回复字典。
+
+    使用久经考验的 deepseek_chat_text() 作为 HTTP 调用层，
+    LangChain 消息类型仅用于内部抽象，调用前转为 dict。
+    """
+    from ai.deepseek_client import deepseek_chat_text
+
     try:
-        reply = await deepseek_chat_text(messages)
+        # LangChain 消息 → dict（兼容原有的 httpx 调用路径）
+        dict_messages = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                dict_messages.append({"role": "system", "content": msg.content})
+            elif isinstance(msg, HumanMessage):
+                dict_messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                dict_messages.append({"role": "assistant", "content": msg.content})
+            else:
+                dict_messages.append({"role": "user", "content": str(msg.content)})
+
+        reply = await deepseek_chat_text(dict_messages)
         return {"reply": reply.strip() or "刚刚卡住了，你接着说。"}
     except Exception as e:
         logger.error(f"情感AI调用失败: {e}", exc_info=True)
         return {
-            "reply": "啊，脑子卡了一下——你刚说什么来着？\n\n（开发者补丁：小元掉线了一会儿，现在回来了。)"
+            "reply": "啊，脑子卡了一下——你刚说什么来着？\n\n（开发者补丁：小元掉线了一会儿，现在回来了。）"
         }

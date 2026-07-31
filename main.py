@@ -23,6 +23,9 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 确保数据目录存在
+    os.makedirs("data/conversations", exist_ok=True)
+
     # task_summary = asyncio.create_task(run_daily_task_loop())
     # task_cleanup = asyncio.create_task(run_cleanup_loop())
     # task_backup = asyncio.create_task(run_backup_loop())

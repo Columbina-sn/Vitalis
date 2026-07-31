@@ -27,6 +27,8 @@ from crud.chat import (
 )
 from ai.empathyAI import build_messages as empathy_build_messages, analog_ai as empathy_analog_ai
 from ai.productivityAI import build_messages as productivity_build_messages, analog_ai as productivity_analog_ai
+from ai.memory.history_store import HistoryStore
+from ai.memory.context_manager import ContextManager
 from config.db_conf import get_db
 from utills.response import success_response
 from utills.logging_conf import get_logger
@@ -34,6 +36,10 @@ from utills.logging_conf import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["聊天"])
+
+# ---------- 上下文管理器（模块级单例） ----------
+_history_store = HistoryStore(base_dir="data/conversations")
+_context_manager = ContextManager(_history_store)
 
 
 def debug_print(obj):
@@ -58,7 +64,9 @@ async def receive_user_message(
 
     # ------ 问候模式：仅调用情感AI，不调用工作AI，不记录用户消息 ------
     if is_greeting:
-        empathy_msgs = empathy_build_messages("", user_info)
+        # 获取持久化上下文
+        empathy_history = await _context_manager.get_empathy_context(current_user.id)
+        empathy_msgs = empathy_build_messages("", user_info, empathy_history)
         debug_print(empathy_msgs)
         empathy_result = await empathy_analog_ai(empathy_msgs)
         greeting_reply = empathy_result["reply"]
@@ -68,6 +76,13 @@ async def receive_user_message(
             greeting_reply, extra_metadata={"greeting": True}
         )
         await db.commit()
+
+        # 记录问候到持久化存储
+        await _context_manager.after_conversation(
+            current_user.id,
+            user_msg="[问候]",
+            assistant_msg=greeting_reply,
+        )
 
         logger.info(f"用户 {current_user.id} 问候生成完成")
         return success_response(message="问候生成成功", data={
@@ -85,8 +100,9 @@ async def receive_user_message(
     for sch in upcoming:
         schedule_map.setdefault(sch.title, []).append(sch)
 
-    # 5. 并行调用情感 AI 与工作 AI
-    empathy_msgs = empathy_build_messages(req.message, user_info)
+    # 5. 获取持久化上下文 + 并行调用情感 AI 与工作 AI
+    empathy_history = await _context_manager.get_empathy_context(current_user.id)
+    empathy_msgs = empathy_build_messages(req.message, user_info, empathy_history)
     prod_msgs = productivity_build_messages(req.message, user_info)
     debug_print(empathy_msgs)
     debug_print(prod_msgs)
@@ -224,6 +240,13 @@ async def receive_user_message(
         extra_metadata=prod_result  # 将工作 AI 的完整 JSON 作为元数据存入
     )
     await db.commit()
+
+    # 16. 持久化上下文存储（文件级） + 检查是否需要压缩
+    await _context_manager.after_conversation(
+        current_user.id,
+        user_msg=req.message,
+        assistant_msg=final_reply,
+    )
 
     logger.info(f"用户 {current_user.id} 对话处理完成")
     return success_response(message="回复用户成功", data={
